@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import pytest
+import yaml
 from optuna.distributions import CategoricalDistribution, FloatDistribution
 from sklearn.datasets import make_classification
 from sklearn.linear_model import LogisticRegression
@@ -14,6 +19,7 @@ from openadmet.models.anvil.nested_optuna import (
     NestedSearchConfig,
     run_nested_optuna_search,
 )
+from openadmet.models.anvil.specification import AnvilSpecification
 
 
 @pytest.fixture
@@ -218,3 +224,116 @@ def test_nested_optuna_end_to_end_simple_model(
         predictions = estimator.predict(X)
         assert len(predictions) == len(y)
         assert set(predictions).issubset({0, 1})
+
+
+def test_nested_optuna_anvil_workflow_integration(tmp_path):
+    """Test end-to-end nested CV via Anvil workflow specification.
+
+    This test verifies the complete integration with the Anvil API:
+    - Creating an Anvil recipe YAML with SKLearnOptunaTrainer
+    - Loading data from CSV
+    - Featurizing with fingerprints
+    - Running nested CV with Optuna through the workflow
+    - Generating evaluation metrics and plots
+    """
+    # Create test data
+    X, y = make_classification(
+        n_samples=100,
+        n_features=10,
+        n_informative=5,
+        n_classes=2,
+        random_state=42,
+    )
+
+    # Create CSV with dummy SMILES
+    df = pd.DataFrame(
+        {
+            "smiles": [f"C{'C' * i}" for i in range(len(y))],
+            "activity": y,
+        }
+    )
+    csv_path = tmp_path / "test_data.csv"
+    df.to_csv(csv_path, index=False)
+
+    # Create Anvil recipe with nested Optuna trainer
+    recipe = {
+        "metadata": {
+            "version": "v1",
+            "name": "nested-optuna-integration-test",
+            "build_number": 0,
+            "description": "Integration test for nested CV with Optuna",
+            "tag": "test-nested-optuna-anvil",
+            "authors": "Test",
+            "email": "test@test.com",
+            "date_created": "2024-01-01",
+            "biotargets": ["TEST"],
+            "tags": ["test", "nested-cv", "optuna"],
+        },
+        "data": {
+            "type": "csv",
+            "resource": str(csv_path),
+            "input_col": "smiles",
+            "target_cols": ["activity"],
+        },
+        "procedure": {
+            "split": {
+                "type": "ShuffleSplitter",
+                "params": {"train_size": 0.8, "random_state": 42},
+            },
+            "feat": {
+                "type": "FingerprintFeaturizer",
+                "params": {"fp_type": "ecfp:4"},
+            },
+            "model": {"type": "LGBMClassifierModel", "params": {}},
+            "train": {
+                "type": "SKLearnOptunaTrainer",
+                "params": {
+                    "outer_n_splits": 2,
+                    "outer_repeats": 1,
+                    "inner_cv": 2,
+                    "n_trials": 3,
+                    "sampler_seed": 42,
+                    "param_distributions": {
+                        "learning_rate": {
+                            "type": "float",
+                            "low": 0.01,
+                            "high": 0.3,
+                            "log": True,
+                        },
+                        "n_estimators": {
+                            "type": "int",
+                            "low": 10,
+                            "high": 50,
+                        },
+                    },
+                },
+            },
+        },
+        "report": {
+            "eval": [
+                {"type": "ClassificationMetrics"},
+            ]
+        },
+    }
+
+    recipe_path = tmp_path / "nested_optuna_recipe.yaml"
+    with open(recipe_path, "w") as f:
+        yaml.dump(recipe, f)
+
+    # Run workflow through Anvil API
+    output_dir = tmp_path / "output"
+    anvil_spec = AnvilSpecification.from_recipe(recipe_path)
+    anvil_workflow = anvil_spec.to_workflow()
+    anvil_workflow.run(output_dir=output_dir)
+
+    # Verify expected outputs exist
+    assert Path(output_dir / "model.json").exists()
+    assert Path(output_dir / "classification_metrics.json").exists()
+    assert Path(output_dir / "anvil_recipe.yaml").exists()
+
+    # Verify classification metrics were computed
+    with open(output_dir / "classification_metrics.json") as f:
+        metrics = json.load(f)
+        assert "accuracy" in metrics
+        # Metrics are returned as dicts with 'value', 'lower_ci', 'upper_ci'
+        assert 0.0 <= metrics["accuracy"]["value"] <= 1.0
