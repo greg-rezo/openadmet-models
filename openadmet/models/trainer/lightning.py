@@ -73,7 +73,7 @@ class LightningTrainer(TrainerBase):
     accelerator: str = "gpu"
     devices: int = 1
     enable_checkpointing: bool = True
-    logger: bool | Logger | list[Logger] = True
+    logger: Any = True  # bool | Logger | list[Logger]
     use_wandb: bool = False
     output_dir: Path = None
     wandb_project: str = "openadmet-testing"
