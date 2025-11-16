@@ -27,8 +27,6 @@ requires-python = ">=3.10"
 dependencies = [
   "boto3",
   "email-validator",
-  "h5py",
-  "hyperopt",
   "intake",
   "intake-parquet",
   "joblib",
@@ -61,15 +59,11 @@ test = [
   "pytest-xdist",
   "codecov",
 ]
-dev = [
-  "jupyterlab",
-]
 chemistry = [
   "ase",
   "chemprop>=2.1.1",
   "datamol",
   "mdanalysis",
-  "modal",
   "mordredcommunity",
   "rdkit",
   "splito",
@@ -77,6 +71,7 @@ chemistry = [
 ]
 ml = [
   "catboost",
+  "hyperopt",
   "lightgbm",
   "pytorch-lightning",
   "torch",
@@ -84,7 +79,6 @@ ml = [
   "uncertainty-toolbox",
 ]
 graph = [
-  "e3nn",
   "torch-cluster",
   "torch-geometric",
   "torch-scatter",
@@ -101,7 +95,7 @@ py311 = [
   "zarr>=3.0.0",
 ]
 all = [
-  "openadmet-models[test,dev,chemistry,ml,graph,git-deps]",
+  "openadmet-models[test,chemistry,ml,graph,git-deps]",
 ]
 
 [project.scripts]
