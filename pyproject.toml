@@ -52,6 +52,7 @@ dependencies = [
   "pydantic",
   "pytorch-lightning",
   "rdkit",
+  "reportlab",
   "rich",
   "scikit-learn>=1.0.0",
   "seaborn",
