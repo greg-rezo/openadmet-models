@@ -25,55 +25,29 @@ classifiers = [
 requires-python = ">=3.10"
 
 dependencies = [
-  "ase",
   "boto3",
-  "catboost",
-  "chemprop>=2.1.1",
-  "datamol",
-  "e3nn",
   "email-validator",
   "h5py",
   "hyperopt",
   "intake",
   "intake-parquet",
   "joblib",
-  "lightgbm",
   "loguru",
   "matplotlib",
-  "mdanalysis",
-  "modal",
-  "mordredcommunity",
   "numpy>=1.21.0",
   "optuna>=3.0.0",
   "optuna-integration[sklearn]>=3.0.0",
   "pandas",
   "phx-class-registry",
   "pingouin",
-  "pytorch-lightning",
-  "rdkit",
   "rich",
   "scikit-learn>=1.0.0",
   "seaborn",
-  "splito",
   "statsmodels",
   "tabulate",
-  "torch",
-  "torch-cluster",
-  "torch-geometric",
-  "torch-scatter",
-  "torch-sparse",
   "tqdm",
-  "umap-learn",
-  "uncertainty-toolbox",
   "wandb",
   "xgboost",
-  "zarr>=3.0.0",
-  "mtenn @ git+https://github.com/OpenADMET/mtenn.git@main",
-  "tabpfn @ git+https://github.com/PriorLabs/TabPFN.git@main",
-  "tabpfn-extensions",
-  "neural-pairwise-regression @ git+https://github.com/JacksonBurns/neural-pairwise-regression.git",
-  "molfeat @ git+https://github.com/OpenADMET/molfeat.git@main",
-  "useful-rdkit-utils @ git+https://github.com/PatWalters/useful_rdkit_utils.git@master",
 ]
 
 [project.urls]
@@ -89,6 +63,45 @@ test = [
 ]
 dev = [
   "jupyterlab",
+]
+chemistry = [
+  "ase",
+  "chemprop>=2.1.1",
+  "datamol",
+  "mdanalysis",
+  "modal",
+  "mordredcommunity",
+  "rdkit",
+  "splito",
+  "molfeat @ git+https://github.com/OpenADMET/molfeat.git@main",
+]
+ml = [
+  "catboost",
+  "lightgbm",
+  "pytorch-lightning",
+  "torch",
+  "umap-learn",
+  "uncertainty-toolbox",
+]
+graph = [
+  "e3nn",
+  "torch-cluster",
+  "torch-geometric",
+  "torch-scatter",
+  "torch-sparse",
+]
+git-deps = [
+  "mtenn @ git+https://github.com/OpenADMET/mtenn.git@main",
+  "tabpfn @ git+https://github.com/PriorLabs/TabPFN.git@main",
+  "tabpfn-extensions",
+  "nepare @ git+https://github.com/JacksonBurns/neural-pairwise-regression.git",
+]
+py311 = [
+  "useful-rdkit-utils @ git+https://github.com/PatWalters/useful_rdkit_utils.git@master",
+  "zarr>=3.0.0",
+]
+all = [
+  "openadmet-models[test,dev,chemistry,ml,graph,git-deps]",
 ]
 
 [project.scripts]
