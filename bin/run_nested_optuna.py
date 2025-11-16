@@ -38,7 +38,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from anvil_nested_optuna import NestedSearchConfig, run_nested_optuna_search
+from openadmet.models.anvil.nested_optuna import (
+    NestedSearchConfig,
+    run_nested_optuna_search,
+)
 
 logger = logging.getLogger(__name__)
 

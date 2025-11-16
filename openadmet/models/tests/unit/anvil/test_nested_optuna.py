@@ -1,4 +1,4 @@
-"""Unit tests for anvil_nested_optuna module."""
+"""Unit tests for nested_optuna module."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from anvil_nested_optuna import (
+from openadmet.models.anvil.nested_optuna import (
     NestedSearchConfig,
     _make_optuna_search,
     _make_outer_cv,
