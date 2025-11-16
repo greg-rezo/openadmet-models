@@ -40,6 +40,7 @@ dependencies = [
   "lightning",
   "loguru",
   "matplotlib",
+  "matplotlib-inline",
   "mdanalysis",
   "mordredcommunity",
   "numpy>=1.21.0",
