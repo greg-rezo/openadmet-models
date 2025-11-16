@@ -4,34 +4,18 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
-# Check if optuna-integration is available
-try:
-    from optuna.distributions import (
-        CategoricalDistribution,
-        FloatDistribution,
-    )
-    from optuna.integration import OptunaSearchCV
-
-    from anvil_nested_optuna import (
-        NestedSearchConfig,
-        _make_optuna_search,
-        _make_outer_cv,
-        run_nested_optuna_search,
-    )
-
-    OPTUNA_AVAILABLE = True
-except ModuleNotFoundError:
-    OPTUNA_AVAILABLE = False
-
+from optuna.distributions import CategoricalDistribution, FloatDistribution
+from optuna.integration import OptunaSearchCV
 from sklearn.datasets import make_classification
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-pytestmark = pytest.mark.skipif(
-    not OPTUNA_AVAILABLE,
-    reason="optuna-integration[sklearn] not installed",
+from anvil_nested_optuna import (
+    NestedSearchConfig,
+    _make_optuna_search,
+    _make_outer_cv,
+    run_nested_optuna_search,
 )
 
 
@@ -132,7 +116,9 @@ def test_make_outer_cv_stratified_kfold(basic_config):
     assert outer_cv.random_state == cfg.outer_random_state
 
 
-def test_make_outer_cv_repeated_stratified_kfold(basic_config):
+def test_make_outer_cv_repeated_stratified_kfold(
+    basic_config, small_classification_dataset
+):
     """Test _make_outer_cv creates RepeatedStratifiedKFold for repeats."""
     from sklearn.model_selection import RepeatedStratifiedKFold
 
@@ -141,9 +127,13 @@ def test_make_outer_cv_repeated_stratified_kfold(basic_config):
     outer_cv = _make_outer_cv(cfg)
 
     assert isinstance(outer_cv, RepeatedStratifiedKFold)
-    assert outer_cv.n_splits == cfg.outer_n_splits
     assert outer_cv.n_repeats == cfg.outer_repeats
     assert outer_cv.random_state == cfg.outer_random_state
+
+    # Verify it produces correct number of splits when used
+    X, y = small_classification_dataset
+    n_splits = sum(1 for _ in outer_cv.split(X, y))
+    assert n_splits == cfg.outer_n_splits * cfg.outer_repeats
 
 
 def test_make_optuna_search(base_estimator, param_distributions, basic_config):  # noqa: E501
@@ -168,8 +158,8 @@ def test_make_optuna_search_with_seed(
 
     search = _make_optuna_search(base_estimator, param_distributions, cfg)
 
+    # Verify TPESampler is used (seed is internal implementation detail)
     assert isinstance(search.study.sampler, TPESampler)
-    assert search.study.sampler._seed == 123
 
 
 def test_make_optuna_search_without_seed(

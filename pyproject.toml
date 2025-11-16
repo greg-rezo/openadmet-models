@@ -24,6 +24,13 @@ classifiers = [
 
 requires-python = ">=3.10"
 
+dependencies = [
+  "numpy>=1.21.0",
+  "scikit-learn>=1.0.0",
+  "optuna>=3.0.0",
+  "optuna-integration[sklearn]>=3.0.0",
+]
+
 [project.urls]
 "Source" = "https://github.com/OpenADMET/openadmet-models"
 "Documentation" = "https://openadmet-models.readthedocs.io/en/latest/?badge=latest"
