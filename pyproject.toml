@@ -32,6 +32,7 @@ dependencies = [
   "datamol",
   "email-validator",
   "hyperopt",
+  "ipython",
   "intake",
   "intake-parquet",
   "jinja2",
