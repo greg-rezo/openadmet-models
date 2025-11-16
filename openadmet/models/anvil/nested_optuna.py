@@ -40,7 +40,6 @@ class NestedSearchConfig:
     timeout_per_trial_s: int | None = None
     sampler_seed: int | None = None
 
-    optuna_n_jobs: int = 1  # parallelism inside OptunaSearchCV
     scoring: str | None = None
     n_jobs_outer: int = 1  # for cross_validate outer loop
 
@@ -92,7 +91,7 @@ def _make_optuna_search(
         cv=cfg.inner_cv,
         scoring=cfg.scoring,
         study=study,
-        n_jobs=cfg.optuna_n_jobs,
+        n_jobs=1,  # Always use 1 to avoid nested parallelism with outer CV
         verbose=0,
         return_train_score=False,
     )

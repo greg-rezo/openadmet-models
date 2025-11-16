@@ -83,7 +83,6 @@ def basic_config():
         inner_cv=2,
         n_trials=3,
         sampler_seed=42,
-        optuna_n_jobs=1,
         n_jobs_outer=1,
         scoring="accuracy",
     )
@@ -200,7 +199,6 @@ def test_nested_optuna_end_to_end_simple_model(
         sampler_seed=42,
         scoring="accuracy",
         n_jobs_outer=1,
-        optuna_n_jobs=1,
     )
 
     # Run nested CV

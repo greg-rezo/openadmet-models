@@ -159,8 +159,6 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         Scoring metric for evaluation (default: None).
     n_jobs_outer : int
         Number of parallel jobs for outer CV (default: 1).
-    optuna_n_jobs : int
-        Number of parallel jobs for Optuna (default: 1).
 
     """
 
@@ -172,7 +170,6 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
     sampler_seed: int | None = None
     scoring: str | None = None
     n_jobs_outer: int = 1
-    optuna_n_jobs: int = 1
 
     def _convert_param_distributions(
         self, param_dists: dict[str, dict[str, Any]]
@@ -241,7 +238,6 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
             sampler_seed=self.sampler_seed,
             scoring=self.scoring,
             n_jobs_outer=self.n_jobs_outer,
-            optuna_n_jobs=self.optuna_n_jobs,
         )
 
         # Run nested CV
