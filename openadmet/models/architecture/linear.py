@@ -1,9 +1,13 @@
 """Linear model implementations for regression and classification."""
 
+import json
+from os import PathLike
 from typing import ClassVar
 
+import joblib
 import numpy as np
 from loguru import logger
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import (
     ElasticNet,
     Lasso,
@@ -19,12 +23,19 @@ class LinearModelBase(PickleableModelBase):
 
     # Meta parameters for this class
     type: ClassVar[str]
-    mod_class: ClassVar[type]
+    mod_class: ClassVar[type]  # type: ignore
+
+    # Imputation parameter
+    use_mean_imputation: bool = False
+    _imputer: SimpleImputer | None = None
 
     def build(self):
         """Prepare the model."""
         if not self.estimator:
-            self.estimator = self.mod_class(**self.model_dump())
+            model_params = self.model_dump(exclude={"use_mean_imputation", "_imputer"})
+            self.estimator = self.mod_class(**model_params)
+            if self.use_mean_imputation:
+                self._imputer = SimpleImputer(strategy="mean")
         else:
             logger.warning("Model already exists, skipping build")
 
@@ -41,6 +52,8 @@ class LinearModelBase(PickleableModelBase):
 
         """
         self.build()
+        if self.use_mean_imputation:
+            X = self._imputer.fit_transform(X)  # type: ignore
         self.estimator = self.estimator.fit(X, y)
 
     def predict(self, X: np.ndarray, **kwargs) -> np.ndarray:
@@ -62,7 +75,71 @@ class LinearModelBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
+        if self.use_mean_imputation:
+            if self._imputer is None:
+                raise ValueError("Imputer not fitted")
+            X = self._imputer.transform(X)  # type: ignore
         return np.expand_dims(self.estimator.predict(X), axis=1)
+
+    def save(self, path: PathLike):
+        """
+        Save the model to a pickle file.
+
+        Parameters
+        ----------
+        path: PathLike
+            Path to save the model to
+
+        """
+        if self.estimator is None:
+            raise ValueError("Model is not built, cannot save")
+
+        with open(path, "wb") as f:
+            joblib.dump({"estimator": self.estimator, "imputer": self._imputer}, f)
+
+    def load(self, path: PathLike):
+        """
+        Load the model from a pickle file.
+
+        Parameters
+        ----------
+        path: PathLike
+            Path to load the model from
+
+        """
+        with open(path, "rb") as f:
+            data = joblib.load(f)
+            self.estimator = data["estimator"]
+            self._imputer = data.get("imputer")
+
+    @classmethod
+    def deserialize(
+        cls,
+        param_path: PathLike = "model.json",
+        serial_path: PathLike = "model.pkl",
+    ):
+        """
+        Create a model from parameters and a pickled model.
+
+        Parameters
+        ----------
+        param_path: PathLike
+            Path to load the model parameters from
+        serial_path: PathLike
+            Path to load the pickled model from
+
+        Returns
+        -------
+        instance: LinearModelBase
+            An instance of the LinearModelBase class
+
+        """
+        with open(param_path) as f:
+            mod_params = json.load(f)
+        instance = cls(**mod_params)
+        instance.build()
+        instance.load(serial_path)
+        return instance
 
 
 @models.register("RidgeModel")
@@ -71,7 +148,7 @@ class RidgeModel(LinearModelBase):
 
     # Meta parameters for this class
     type: ClassVar[str] = "RidgeModel"
-    mod_class: ClassVar[type] = Ridge
+    mod_class: ClassVar[type] = Ridge  # type: ignore
 
     # Ridge parameters
     alpha: float = 1.0
@@ -90,7 +167,7 @@ class LassoModel(LinearModelBase):
 
     # Meta parameters for this class
     type: ClassVar[str] = "LassoModel"
-    mod_class: ClassVar[type] = Lasso
+    mod_class: ClassVar[type] = Lasso  # type: ignore
 
     # Lasso parameters
     alpha: float = 1.0
@@ -111,7 +188,7 @@ class ElasticNetModel(LinearModelBase):
 
     # Meta parameters for this class
     type: ClassVar[str] = "ElasticNetModel"
-    mod_class: ClassVar[type] = ElasticNet
+    mod_class: ClassVar[type] = ElasticNet  # type: ignore
 
     # ElasticNet parameters
     alpha: float = 1.0
@@ -132,12 +209,19 @@ class LogisticRegressionBase(PickleableModelBase):
 
     # Meta parameters for this class
     type: ClassVar[str]
-    mod_class: ClassVar[type] = LogisticRegression
+    mod_class: ClassVar[type] = LogisticRegression  # type: ignore
+
+    # Imputation parameter
+    use_mean_imputation: bool = False
+    _imputer: SimpleImputer | None = None
 
     def build(self):
         """Prepare the model."""
         if not self.estimator:
-            self.estimator = self.mod_class(**self.model_dump())
+            model_params = self.model_dump(exclude={"use_mean_imputation", "_imputer"})
+            self.estimator = self.mod_class(**model_params)
+            if self.use_mean_imputation:
+                self._imputer = SimpleImputer(strategy="mean")
         else:
             logger.warning("Model already exists, skipping build")
 
@@ -154,6 +238,8 @@ class LogisticRegressionBase(PickleableModelBase):
 
         """
         self.build()
+        if self.use_mean_imputation:
+            X = self._imputer.fit_transform(X)  # type: ignore
         self.estimator = self.estimator.fit(X, y)
 
     def predict(self, X: np.ndarray, **kwargs) -> np.ndarray:
@@ -175,6 +261,10 @@ class LogisticRegressionBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
+        if self.use_mean_imputation:
+            if self._imputer is None:
+                raise ValueError("Imputer not fitted")
+            X = self._imputer.transform(X)  # type: ignore
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -194,7 +284,71 @@ class LogisticRegressionBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
+        if self.use_mean_imputation:
+            if self._imputer is None:
+                raise ValueError("Imputer not fitted")
+            X = self._imputer.transform(X)  # type: ignore
         return self.estimator.predict_proba(X)
+
+    def save(self, path: PathLike):
+        """
+        Save the model to a pickle file.
+
+        Parameters
+        ----------
+        path: PathLike
+            Path to save the model to
+
+        """
+        if self.estimator is None:
+            raise ValueError("Model is not built, cannot save")
+
+        with open(path, "wb") as f:
+            joblib.dump({"estimator": self.estimator, "imputer": self._imputer}, f)
+
+    def load(self, path: PathLike):
+        """
+        Load the model from a pickle file.
+
+        Parameters
+        ----------
+        path: PathLike
+            Path to load the model from
+
+        """
+        with open(path, "rb") as f:
+            data = joblib.load(f)
+            self.estimator = data["estimator"]
+            self._imputer = data.get("imputer")
+
+    @classmethod
+    def deserialize(
+        cls,
+        param_path: PathLike = "model.json",
+        serial_path: PathLike = "model.pkl",
+    ):
+        """
+        Create a model from parameters and a pickled model.
+
+        Parameters
+        ----------
+        param_path: PathLike
+            Path to load the model parameters from
+        serial_path: PathLike
+            Path to load the pickled model from
+
+        Returns
+        -------
+        instance: LogisticRegressionBase
+            An instance of the LogisticRegressionBase class
+
+        """
+        with open(param_path) as f:
+            mod_params = json.load(f)
+        instance = cls(**mod_params)
+        instance.build()
+        instance.load(serial_path)
+        return instance
 
 
 @models.register("LogisticRegressionL1Model")
