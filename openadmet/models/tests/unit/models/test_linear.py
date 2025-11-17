@@ -59,9 +59,24 @@ def test_ridge_model_with_mean_imputation(regression_data_with_nans):
     model = RidgeModel(alpha=1.0, use_mean_imputation=True)
     X, y = regression_data_with_nans
     model.train(X, y)
+
+    # Verify imputer was created and fitted
+    assert model._imputer is not None
+    # Check that imputer learned correct means: col 1 mean = (2+8+11)/3 = 7
+    # col 2 mean = (3+6+12)/3 = 7
+    expected_means = np.array([5.5, 7.0, 7.0])
+    assert_allclose(model._imputer.statistics_, expected_means)
+
+    # Test prediction with NaN data
     preds = model.predict(X)
     assert preds.shape == (4, 1)
     assert not np.any(np.isnan(preds))
+
+    # Test prediction with new NaN data
+    X_new = np.array([[np.nan, np.nan, 5], [2, 3, np.nan]])
+    preds_new = model.predict(X_new)
+    assert preds_new.shape == (2, 1)
+    assert not np.any(np.isnan(preds_new))
 
 
 def test_lasso_model_with_mean_imputation(regression_data_with_nans):
