@@ -18,10 +18,13 @@ from optuna.integration import OptunaSearchCV  # type: ignore
 from optuna.samplers import TPESampler
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import (
+    KFold,
+    RepeatedKFold,
     RepeatedStratifiedKFold,
     StratifiedKFold,
     cross_validate,
 )
+from sklearn.utils.multiclass import type_of_target
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +47,47 @@ class NestedSearchConfig:
     n_jobs_outer: int = 1  # for cross_validate outer loop
 
 
-def _make_outer_cv(cfg: NestedSearchConfig):
+def _make_outer_cv(cfg: NestedSearchConfig, y: np.ndarray):
+    """
+    Create outer CV splitter based on target type.
+
+    Args:
+        cfg: NestedSearchConfig instance.
+        y: Target array to determine if task is classification or regression.
+
+    Returns:
+        CV splitter (stratified for classification, regular for regression).
+
+    """
+    target_type = type_of_target(y)
+    is_classification = target_type in ("binary", "multiclass")
+
     if cfg.outer_repeats and cfg.outer_repeats > 1:
-        return RepeatedStratifiedKFold(
-            n_splits=cfg.outer_n_splits,
-            n_repeats=cfg.outer_repeats,
-            random_state=cfg.outer_random_state,
-        )
-    return StratifiedKFold(
-        n_splits=cfg.outer_n_splits,
-        shuffle=cfg.outer_shuffle,
-        random_state=cfg.outer_random_state,
-    )
+        if is_classification:
+            return RepeatedStratifiedKFold(
+                n_splits=cfg.outer_n_splits,
+                n_repeats=cfg.outer_repeats,
+                random_state=cfg.outer_random_state,
+            )
+        else:
+            return RepeatedKFold(
+                n_splits=cfg.outer_n_splits,
+                n_repeats=cfg.outer_repeats,
+                random_state=cfg.outer_random_state,
+            )
+    else:
+        if is_classification:
+            return StratifiedKFold(
+                n_splits=cfg.outer_n_splits,
+                shuffle=cfg.outer_shuffle,
+                random_state=cfg.outer_random_state,
+            )
+        else:
+            return KFold(
+                n_splits=cfg.outer_n_splits,
+                shuffle=cfg.outer_shuffle,
+                random_state=cfg.outer_random_state,
+            )
 
 
 def _make_optuna_search(
@@ -127,7 +159,7 @@ def run_nested_optuna_search(
                 outer fold)
 
     """
-    outer_cv = _make_outer_cv(cfg)
+    outer_cv = _make_outer_cv(cfg, y)
     optuna_search = _make_optuna_search(base_estimator, param_distributions, cfg)
 
     logger.info(
