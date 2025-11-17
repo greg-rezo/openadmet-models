@@ -15,6 +15,7 @@ from sklearn.linear_model import (
     Ridge,
 )
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from openadmet.models.architecture.model_base import PickleableModelBase, models
 
@@ -34,17 +35,21 @@ class LinearModelBase(PickleableModelBase):
         Prepare the model.
 
         If use_mean_imputation is True, wraps the estimator in a Pipeline
-        with SimpleImputer. Otherwise, uses the estimator directly.
+        with SimpleImputer and StandardScaler. Otherwise, uses the estimator
+        directly.
         """
         if not self.estimator:
             model_params = self.model_dump(exclude={"use_mean_imputation"})
             base_model = self.mod_class(**model_params)
 
             if self.use_mean_imputation:
-                # Wrap in pipeline with imputer
+                # Wrap in pipeline with imputer and scaler
+                # StandardScaler is important for linear models with
+                # regularization
                 self.estimator = Pipeline(
                     [
                         ("imputer", SimpleImputer(strategy="mean")),
+                        ("scaler", StandardScaler()),
                         ("model", base_model),
                     ]
                 )
@@ -225,17 +230,21 @@ class LogisticRegressionBase(PickleableModelBase):
         Prepare the model.
 
         If use_mean_imputation is True, wraps the estimator in a Pipeline
-        with SimpleImputer. Otherwise, uses the estimator directly.
+        with SimpleImputer and StandardScaler. Otherwise, uses the estimator
+        directly.
         """
         if not self.estimator:
             model_params = self.model_dump(exclude={"use_mean_imputation"})
             base_model = self.mod_class(**model_params)
 
             if self.use_mean_imputation:
-                # Wrap in pipeline with imputer
+                # Wrap in pipeline with imputer and scaler
+                # StandardScaler is important for linear models with
+                # regularization
                 self.estimator = Pipeline(
                     [
                         ("imputer", SimpleImputer(strategy="mean")),
+                        ("scaler", StandardScaler()),
                         ("model", base_model),
                     ]
                 )
