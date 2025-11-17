@@ -114,12 +114,6 @@ class SKLearnGridSearchTrainer(SKLearnSearchTrainer):
             The trained model.
 
         """
-        # Handle imputation if the model has a fitted imputer
-        # This ensures data is imputed before GridSearchCV cloning
-        if hasattr(self.model, "_imputer") and self.model._imputer is not None:
-            logger.info("Imputing NaN values before GridSearchCV")
-            X = self.model._imputer.fit_transform(X)
-
         sklearn_model = self.model.estimator
         self.search = GridSearchCV(sklearn_model, param_grid=self.param_grid)
         self.search.fit(X, y)
@@ -230,12 +224,6 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
             The trained model with best estimator from first outer fold.
 
         """
-        # Handle imputation if the model has a fitted imputer
-        # This ensures data is imputed before Optuna search
-        if hasattr(self.model, "_imputer") and self.model._imputer is not None:
-            logger.info("Imputing NaN values before Optuna search")
-            X = self.model._imputer.fit_transform(X)
-
         sklearn_model = self.model.estimator
 
         # Convert param distributions from dict to Optuna objects

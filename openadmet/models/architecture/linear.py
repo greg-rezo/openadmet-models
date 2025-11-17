@@ -7,7 +7,6 @@ from typing import ClassVar
 import joblib
 import numpy as np
 from loguru import logger
-from sklearn.exceptions import NotFittedError
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import (
     ElasticNet,
@@ -15,6 +14,7 @@ from sklearn.linear_model import (
     LogisticRegression,
     Ridge,
 )
+from sklearn.pipeline import Pipeline
 
 from openadmet.models.architecture.model_base import PickleableModelBase, models
 
@@ -28,15 +28,28 @@ class LinearModelBase(PickleableModelBase):
 
     # Imputation parameter
     use_mean_imputation: bool = False
-    _imputer: SimpleImputer | None = None
 
     def build(self):
-        """Prepare the model."""
+        """
+        Prepare the model.
+
+        If use_mean_imputation is True, wraps the estimator in a Pipeline
+        with SimpleImputer. Otherwise, uses the estimator directly.
+        """
         if not self.estimator:
-            model_params = self.model_dump(exclude={"use_mean_imputation", "_imputer"})
-            self.estimator = self.mod_class(**model_params)
+            model_params = self.model_dump(exclude={"use_mean_imputation"})
+            base_model = self.mod_class(**model_params)
+
             if self.use_mean_imputation:
-                self._imputer = SimpleImputer(strategy="mean")
+                # Wrap in pipeline with imputer
+                self.estimator = Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="mean")),
+                        ("model", base_model),
+                    ]
+                )
+            else:
+                self.estimator = base_model
         else:
             logger.warning("Model already exists, skipping build")
 
@@ -53,8 +66,6 @@ class LinearModelBase(PickleableModelBase):
 
         """
         self.build()
-        if self.use_mean_imputation:
-            X = self._imputer.fit_transform(X)  # type: ignore
         self.estimator = self.estimator.fit(X, y)
 
     def predict(self, X: np.ndarray, **kwargs) -> np.ndarray:
@@ -76,13 +87,6 @@ class LinearModelBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
-        if self._imputer is not None:
-            try:
-                X = self._imputer.transform(X)  # type: ignore
-            except NotFittedError:
-                # Imputer exists but not fitted (e.g., after GridSearchCV)
-                # Skip imputation and proceed with raw data
-                pass
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
     def save(self, path: PathLike):
@@ -99,7 +103,7 @@ class LinearModelBase(PickleableModelBase):
             raise ValueError("Model is not built, cannot save")
 
         with open(path, "wb") as f:
-            joblib.dump({"estimator": self.estimator, "imputer": self._imputer}, f)
+            joblib.dump(self.estimator, f)
 
     def load(self, path: PathLike):
         """
@@ -112,9 +116,7 @@ class LinearModelBase(PickleableModelBase):
 
         """
         with open(path, "rb") as f:
-            data = joblib.load(f)
-            self.estimator = data["estimator"]
-            self._imputer = data.get("imputer")
+            self.estimator = joblib.load(f)
 
     @classmethod
     def deserialize(
@@ -217,15 +219,28 @@ class LogisticRegressionBase(PickleableModelBase):
 
     # Imputation parameter
     use_mean_imputation: bool = False
-    _imputer: SimpleImputer | None = None
 
     def build(self):
-        """Prepare the model."""
+        """
+        Prepare the model.
+
+        If use_mean_imputation is True, wraps the estimator in a Pipeline
+        with SimpleImputer. Otherwise, uses the estimator directly.
+        """
         if not self.estimator:
-            model_params = self.model_dump(exclude={"use_mean_imputation", "_imputer"})
-            self.estimator = self.mod_class(**model_params)
+            model_params = self.model_dump(exclude={"use_mean_imputation"})
+            base_model = self.mod_class(**model_params)
+
             if self.use_mean_imputation:
-                self._imputer = SimpleImputer(strategy="mean")
+                # Wrap in pipeline with imputer
+                self.estimator = Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="mean")),
+                        ("model", base_model),
+                    ]
+                )
+            else:
+                self.estimator = base_model
         else:
             logger.warning("Model already exists, skipping build")
 
@@ -242,8 +257,6 @@ class LogisticRegressionBase(PickleableModelBase):
 
         """
         self.build()
-        if self.use_mean_imputation:
-            X = self._imputer.fit_transform(X)  # type: ignore
         self.estimator = self.estimator.fit(X, y)
 
     def predict(self, X: np.ndarray, **kwargs) -> np.ndarray:
@@ -265,13 +278,6 @@ class LogisticRegressionBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
-        if self._imputer is not None:
-            try:
-                X = self._imputer.transform(X)  # type: ignore
-            except NotFittedError:
-                # Imputer exists but not fitted (e.g., after GridSearchCV)
-                # Skip imputation and proceed with raw data
-                pass
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -291,13 +297,6 @@ class LogisticRegressionBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
-        if self._imputer is not None:
-            try:
-                X = self._imputer.transform(X)  # type: ignore
-            except NotFittedError:
-                # Imputer exists but not fitted (e.g., after GridSearchCV)
-                # Skip imputation and proceed with raw data
-                pass
         return self.estimator.predict_proba(X)
 
     def save(self, path: PathLike):
@@ -314,7 +313,7 @@ class LogisticRegressionBase(PickleableModelBase):
             raise ValueError("Model is not built, cannot save")
 
         with open(path, "wb") as f:
-            joblib.dump({"estimator": self.estimator, "imputer": self._imputer}, f)
+            joblib.dump(self.estimator, f)
 
     def load(self, path: PathLike):
         """
@@ -327,9 +326,7 @@ class LogisticRegressionBase(PickleableModelBase):
 
         """
         with open(path, "rb") as f:
-            data = joblib.load(f)
-            self.estimator = data["estimator"]
-            self._imputer = data.get("imputer")
+            self.estimator = joblib.load(f)
 
     @classmethod
     def deserialize(
