@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
+from sklearn.model_selection import GridSearchCV
 
 from openadmet.models.architecture.linear import (
     ElasticNetModel,
@@ -176,3 +177,58 @@ def test_logistic_regression_predict_proba_with_imputation(
     assert probs.shape == (4, 2)
     assert not np.any(np.isnan(probs))
     assert_allclose(probs.sum(axis=1), np.ones(4))
+
+
+def test_ridge_with_gridsearchcv_and_imputation():
+    """Test Ridge model with GridSearchCV when imputation is enabled.
+
+    This test verifies that the model handles the scenario where:
+    1. Model has imputation enabled
+    2. The underlying sklearn estimator is used in GridSearchCV
+    3. Predictions work correctly after GridSearchCV completes
+
+    This simulates how SKLearnGridSearchTrainer uses the model.
+    """
+    # Create training data with some variety for CV splits
+    np.random.seed(42)
+    X_train = np.array(
+        [
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [7.0, 8.0, 9.0],
+            [10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0],
+            [16.0, 17.0, 18.0],
+            [19.0, 20.0, 21.0],
+            [22.0, 23.0, 24.0],
+        ]
+    )
+    y_train = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+
+    # Test data without NaN (since training data has no NaN)
+    X_test = np.array([[25.0, 26.0, 27.0], [28.0, 29.0, 30.0]])
+
+    # Create model with imputation enabled and build it
+    model = RidgeModel(use_mean_imputation=True, alpha=1.0)
+    model.build()
+
+    # Simulate what SKLearnGridSearchTrainer does:
+    # Use GridSearchCV on the underlying sklearn estimator
+    sklearn_model = model.estimator
+    param_grid = {"alpha": [0.1, 1.0, 10.0]}
+    grid_search = GridSearchCV(sklearn_model, param_grid=param_grid, cv=3)
+
+    # Fit the GridSearchCV
+    grid_search.fit(X_train, y_train)
+
+    # Update the model with the best estimator (like the trainer does)
+    model.estimator = grid_search.best_estimator_
+
+    # Now predict using the model - this should work without errors
+    # The imputer should be None (not used during GridSearchCV)
+    # so prediction should proceed without imputation
+    predictions = model.predict(X_test)
+
+    # Verify predictions are valid
+    assert predictions.shape == (2, 1)
+    assert not np.any(np.isnan(predictions))

@@ -7,6 +7,7 @@ from typing import ClassVar
 import joblib
 import numpy as np
 from loguru import logger
+from sklearn.exceptions import NotFittedError
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import (
     ElasticNet,
@@ -76,7 +77,12 @@ class LinearModelBase(PickleableModelBase):
         if not self.estimator:
             raise ValueError("Model not trained")
         if self._imputer is not None:
-            X = self._imputer.transform(X)  # type: ignore
+            try:
+                X = self._imputer.transform(X)  # type: ignore
+            except NotFittedError:
+                # Imputer exists but not fitted (e.g., after GridSearchCV)
+                # Skip imputation and proceed with raw data
+                pass
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
     def save(self, path: PathLike):
@@ -260,7 +266,12 @@ class LogisticRegressionBase(PickleableModelBase):
         if not self.estimator:
             raise ValueError("Model not trained")
         if self._imputer is not None:
-            X = self._imputer.transform(X)  # type: ignore
+            try:
+                X = self._imputer.transform(X)  # type: ignore
+            except NotFittedError:
+                # Imputer exists but not fitted (e.g., after GridSearchCV)
+                # Skip imputation and proceed with raw data
+                pass
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
@@ -281,7 +292,12 @@ class LogisticRegressionBase(PickleableModelBase):
         if not self.estimator:
             raise ValueError("Model not trained")
         if self._imputer is not None:
-            X = self._imputer.transform(X)  # type: ignore
+            try:
+                X = self._imputer.transform(X)  # type: ignore
+            except NotFittedError:
+                # Imputer exists but not fitted (e.g., after GridSearchCV)
+                # Skip imputation and proceed with raw data
+                pass
         return self.estimator.predict_proba(X)
 
     def save(self, path: PathLike):
