@@ -13,11 +13,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from optuna import create_study
 from optuna.integration import OptunaSearchCV  # type: ignore
 from optuna.samplers import TPESampler
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import (
+    BaseCrossValidator,
     KFold,
     RepeatedKFold,
     RepeatedStratifiedKFold,
@@ -46,19 +48,31 @@ class NestedSearchConfig:
     scoring: str | None = None
     n_jobs_outer: int = 1  # for cross_validate outer loop
 
+    # Custom CV splitter (e.g., for scaffold/cluster-based splits)
+    custom_outer_cv: Any | None = None
+
 
 def _make_outer_cv(cfg: NestedSearchConfig, y: np.ndarray):
     """
-    Create outer CV splitter based on target type.
+    Create outer CV splitter based on target type or custom splitter.
 
     Args:
         cfg: NestedSearchConfig instance.
         y: Target array to determine if task is classification or regression.
 
     Returns:
-        CV splitter (stratified for classification, regular for regression).
+        CV splitter (custom, stratified for classification, or regular for
+        regression).
 
     """
+    # Use custom splitter if provided (e.g., scaffold/cluster-based)
+    if cfg.custom_outer_cv is not None:
+        logger.info(
+            f"Using custom outer CV splitter: {cfg.custom_outer_cv.__class__.__name__}"
+        )
+        return cfg.custom_outer_cv
+
+    # Fall back to default sklearn splitters
     target_type = type_of_target(y)
     is_classification = target_type in ("binary", "multiclass")
 

@@ -137,12 +137,13 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
     Performs nested cross-validation with Optuna hyperparameter search
     in the inner loop.
 
-    Attributes
+    Attributes:
     ----------
     param_distributions : dict
         Parameter distributions for Optuna search. Each key is a parameter
         name and each value is a dict with 'type' and distribution args.
-        Example:
+
+    Example:
             {
                 "learning_rate": {"type": "float", "low": 0.01, "high": 0.3,
                                   "log": True},
@@ -173,6 +174,7 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
     sampler_seed: int | None = None
     scoring: str | None = None
     n_jobs_outer: int = 1
+    custom_outer_cv: Any | None = None  # Custom CV splitter for nested CV
 
     def _convert_param_distributions(
         self, param_dists: dict[str, dict[str, Any]]
@@ -241,6 +243,7 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
             sampler_seed=self.sampler_seed,
             scoring=self.scoring,
             n_jobs_outer=self.n_jobs_outer,
+            custom_outer_cv=self.custom_outer_cv,
         )
 
         # Run nested CV for unbiased performance estimation
