@@ -3,11 +3,14 @@
 from typing import Any
 
 from loguru import logger
+from optuna import create_study
 from optuna.distributions import (
     CategoricalDistribution,
     FloatDistribution,
     IntDistribution,
 )
+from optuna.integration import OptunaSearchCV  # type: ignore
+from optuna.samplers import TPESampler
 from sklearn.model_selection import GridSearchCV
 
 from openadmet.models.anvil.nested_optuna import (
@@ -240,19 +243,45 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
             n_jobs_outer=self.n_jobs_outer,
         )
 
-        # Run nested CV
+        # Run nested CV for unbiased performance estimation
         results = run_nested_optuna_search(X, y, sklearn_model, optuna_dists, cfg)
 
-        # Use the best estimator from the first outer fold
-        # (alternative: could retrain on full data with best params)
-        self.search = results["estimators"][0]
-        self.model.estimator = self.search.best_estimator_
+        # Log nested CV performance (unbiased estimate)
+        nested_cv_score = sum(results["outer_best_scores"]) / len(
+            results["outer_best_scores"]
+        )
+        logger.info(f"Nested CV mean score: {nested_cv_score:.4f}")
+
+        # Run final Optuna search on full dataset for production model
+        logger.info(
+            f"Running final Optuna search on full dataset (n_trials={self.n_trials})"
+        )
+        sampler = (
+            TPESampler(seed=self.sampler_seed)
+            if self.sampler_seed is not None
+            else TPESampler()
+        )
+        study = create_study(sampler=sampler, direction="maximize")
+
+        final_search = OptunaSearchCV(
+            estimator=sklearn_model,
+            param_distributions=optuna_dists,
+            n_trials=self.n_trials,
+            cv=5,  # Simple 5-fold CV on full dataset
+            scoring=self.scoring,
+            study=study,
+            n_jobs=1,
+            verbose=0,
+            return_train_score=False,
+        )
+        final_search.fit(X, y)
+
+        # Use final search results for production model
+        self.search = final_search
+        self.model.estimator = final_search.best_estimator_
         self.model.__dict__.update(self.model.estimator.get_params())
 
-        logger.info(
-            f"Nested CV mean score: "
-            f"{sum(results['outer_best_scores']) / len(results['outer_best_scores']):.4f}"  # noqa: E501
-        )
-        logger.info(f"Best params (fold 0): {self.search.best_params_}")
+        logger.info(f"Final best params: {final_search.best_params_}")
+        logger.info(f"Final CV score: {final_search.best_score_:.4f}")
 
         return self.model
