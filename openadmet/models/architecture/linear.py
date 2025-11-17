@@ -75,9 +75,7 @@ class LinearModelBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
-        if self.use_mean_imputation:
-            if self._imputer is None:
-                raise ValueError("Imputer not fitted")
+        if self._imputer is not None:
             X = self._imputer.transform(X)  # type: ignore
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
@@ -261,9 +259,7 @@ class LogisticRegressionBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
-        if self.use_mean_imputation:
-            if self._imputer is None:
-                raise ValueError("Imputer not fitted")
+        if self._imputer is not None:
             X = self._imputer.transform(X)  # type: ignore
         return np.expand_dims(self.estimator.predict(X), axis=1)
 
@@ -284,9 +280,7 @@ class LogisticRegressionBase(PickleableModelBase):
         """
         if not self.estimator:
             raise ValueError("Model not trained")
-        if self.use_mean_imputation:
-            if self._imputer is None:
-                raise ValueError("Imputer not fitted")
+        if self._imputer is not None:
             X = self._imputer.transform(X)  # type: ignore
         return self.estimator.predict_proba(X)
 

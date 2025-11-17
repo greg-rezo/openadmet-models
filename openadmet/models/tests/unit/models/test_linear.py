@@ -120,16 +120,18 @@ def test_ridge_model_imputation_disabled_fails_with_nans(
         model.train(X, y)
 
 
-def test_ridge_model_predict_without_imputer_raises_error(
-    regression_data_with_nans,
+def test_ridge_model_predict_without_imputer_skips_imputation(
+    regression_data,
 ):
-    """Test Ridge model raises error when imputer not fitted."""
-    model = RidgeModel(alpha=1.0, use_mean_imputation=True)
-    X, y = regression_data_with_nans
+    """Test Ridge model skips imputation when imputer not set."""
+    model = RidgeModel(alpha=1.0, use_mean_imputation=False)
+    X, y = regression_data
     model.train(X, y)
-    model._imputer = None
-    with pytest.raises(ValueError, match="Imputer not fitted"):
-        model.predict(X)
+    # Verify imputer was not created
+    assert model._imputer is None
+    # Prediction should work fine without imputation
+    preds = model.predict(X)
+    assert preds.shape == (4, 1)
 
 
 def test_ridge_model_serialization_with_imputation(tmp_path, regression_data_with_nans):
