@@ -138,7 +138,10 @@ def save_features_to_cache(
     cache_data = {"features": features, "indices": indices}
 
     joblib.dump(cache_data, cache_path)
-    logger.debug(f"Saved features to cache: {cache_path}")
+    logger.info(
+        f"Saved features to cache: {cache_path.name} "
+        f"(shape: {features.shape}, {len(indices)} samples)"
+    )
 
     return cache_path
 
@@ -164,14 +167,20 @@ def load_features_from_cache(
     cache_path = cache_dir / f"{cache_key}.pkl"
 
     if not cache_path.exists():
+        logger.debug(f"Cache miss: {cache_key}")
         return None
 
     try:
         cache_data = joblib.load(cache_path)
-        logger.info(f"Loaded features from cache: {cache_path}")
-        return cache_data["features"], cache_data["indices"]
+        features = cache_data["features"]
+        indices = cache_data["indices"]
+        logger.info(
+            f"Loaded features from cache: {cache_path.name} "
+            f"(shape: {features.shape}, {len(indices)} samples)"
+        )
+        return features, indices
     except Exception as e:
-        logger.warning(f"Failed to load cache from {cache_path}: {e}")
+        logger.warning(f"Failed to load cache from {cache_path.name}: {e}")
         return None
 
 
