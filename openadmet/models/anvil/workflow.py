@@ -264,24 +264,44 @@ class AnvilWorkflow(AnvilWorkflowBase):
 
         logger.info("Data split")
 
-        # Featurize splits
+        # Featurize full dataset once (more efficient caching)
         logger.info("Featurizing data")
-        # Train
-        X_train_feat, _ = self.feat.featurize(X_train)
+        X_feat, feat_indices = self.feat.featurize(X)
+
+        # Map featurized indices back to original indices
+        # (some molecules may fail featurization)
+        if len(feat_indices) < len(X):
+            logger.warning(
+                f"Featurization failed for {len(X) - len(feat_indices)} molecules"
+            )
+
+        # Create mapping from original indices to feature array positions
+        # feat_indices contains the original row indices that were successfully
+        # featurized
+        feat_index_map = {orig_idx: i for i, orig_idx in enumerate(feat_indices)}
+
+        # Get feature indices for each split
+        train_feat_indices = [
+            feat_index_map[idx] for idx in X_train.index if idx in feat_index_map
+        ]
+        X_train_feat = X_feat[train_feat_indices]
         zarr.save(data_dir / "X_train_feat.zarr", X_train_feat)
 
         # Val
         if X_val is not None:
-            X_val_feat, _ = self.feat.featurize(X_val)
+            val_feat_indices = [
+                feat_index_map[idx] for idx in X_val.index if idx in feat_index_map
+            ]
+            X_val_feat = X_feat[val_feat_indices]
             zarr.save(data_dir / "X_val_feat.zarr", X_val_feat)
 
         # Test
         if X_test is not None:
-            X_test_feat, _ = self.feat.featurize(X_test)
+            test_feat_indices = [
+                feat_index_map[idx] for idx in X_test.index if idx in feat_index_map
+            ]
+            X_test_feat = X_feat[test_feat_indices]
             zarr.save(data_dir / "X_test_feat.zarr", X_test_feat)
-
-        # featurize whole dataset also for CV if needed
-        X_feat, _ = self.feat.featurize(X)
 
         # Transform data
         if self.transform:
