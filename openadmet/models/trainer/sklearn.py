@@ -13,10 +13,6 @@ from optuna.integration import OptunaSearchCV  # type: ignore
 from optuna.samplers import TPESampler
 from sklearn.model_selection import GridSearchCV
 
-from openadmet.models.anvil.nested_optuna import (
-    NestedSearchConfig,
-    run_nested_optuna_search,
-)
 from openadmet.models.drivers import DriverType
 from openadmet.models.trainer.trainer_base import TrainerBase, trainers
 
@@ -234,28 +230,10 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         # Convert param distributions from dict to Optuna objects
         optuna_dists = self._convert_param_distributions(self.param_distributions)
 
-        # Configure nested search
-        cfg = NestedSearchConfig(
-            outer_n_splits=self.outer_n_splits,
-            outer_repeats=self.outer_repeats,
-            inner_cv=self.inner_cv,
-            n_trials=self.n_trials,
-            sampler_seed=self.sampler_seed,
-            scoring=self.scoring,
-            n_jobs_outer=self.n_jobs_outer,
-            custom_outer_cv=self.custom_outer_cv,
-        )
+        # Store param distributions on model for evaluator to access
+        self.model.param_distributions = optuna_dists
 
-        # Run nested CV for unbiased performance estimation
-        results = run_nested_optuna_search(X, y, sklearn_model, optuna_dists, cfg)
-
-        # Log nested CV performance (unbiased estimate)
-        nested_cv_score = sum(results["outer_best_scores"]) / len(
-            results["outer_best_scores"]
-        )
-        logger.info(f"Nested CV mean score: {nested_cv_score:.4f}")
-
-        # Run final Optuna search on full dataset for production model
+        # Run Optuna search on full dataset for production model
         logger.info(
             f"Running final Optuna search on full dataset (n_trials={self.n_trials})"
         )
