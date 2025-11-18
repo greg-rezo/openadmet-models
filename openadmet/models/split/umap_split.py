@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 import numpy as np
+import yaml
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.model_selection import BaseCrossValidator
 from umap import UMAP
@@ -111,6 +112,41 @@ class UMAPCVSplitter(BaseCrossValidator):
 
         """
         return self.n_splits
+
+    def __getstate__(self) -> dict[str, Any]:
+        """
+        Get state for serialization (e.g., YAML, pickle).
+
+        Returns only the constructor parameters, excluding runtime state
+        like computed embeddings and fold assignments.
+
+        Returns:
+            Dictionary containing serializable parameters
+
+        """
+        return {
+            "n_splits": self.n_splits,
+            "random_seed": self.random_seed,
+            "n_neighbors": self.n_neighbors,
+            "min_dist": self.min_dist,
+        }
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """
+        Set state from deserialization (e.g., YAML, pickle).
+
+        Reconstructs the object from serialized parameters.
+
+        Args:
+            state: Dictionary containing serialized parameters
+
+        """
+        self.n_splits = state["n_splits"]
+        self.random_seed = state["random_seed"]
+        self.n_neighbors = state["n_neighbors"]
+        self.min_dist = state["min_dist"]
+        self.umap_embeddings = None
+        self.fold_assignments = None
 
     def _deduplicate_features(self, X: np.ndarray) -> tuple[np.ndarray, dict[int, int]]:
         """
@@ -444,3 +480,51 @@ class UMAPCVSplitter(BaseCrossValidator):
                 f"Fold {f}: {len(y_fold)} samples, "
                 f"classes={dict(zip(unique_fold, counts_fold))}"
             )
+
+
+# Register YAML representer and constructor for UMAPCVSplitter
+def _umap_cv_splitter_representer(
+    dumper: yaml.Dumper, splitter: UMAPCVSplitter
+) -> yaml.Node:
+    """
+    YAML representer for UMAPCVSplitter.
+
+    Converts UMAPCVSplitter object to YAML-serializable dict.
+
+    Args:
+        dumper: YAML dumper instance
+        splitter: UMAPCVSplitter instance
+
+    Returns:
+        YAML mapping node
+
+    """
+    return dumper.represent_mapping("!UMAPCVSplitter", splitter.__getstate__())
+
+
+def _umap_cv_splitter_constructor(
+    loader: yaml.Loader, node: yaml.Node
+) -> UMAPCVSplitter:
+    """
+    YAML constructor for UMAPCVSplitter.
+
+    Reconstructs UMAPCVSplitter object from YAML dict.
+
+    Args:
+        loader: YAML loader instance
+        node: YAML node to construct from
+
+    Returns:
+        UMAPCVSplitter instance
+
+    """
+    params = loader.construct_mapping(node, deep=True)
+    return UMAPCVSplitter(**params)
+
+
+# Register with both SafeDumper/SafeLoader (used by safe_dump/safe_load)
+# and default Dumper/Loader
+yaml.add_representer(UMAPCVSplitter, _umap_cv_splitter_representer)
+yaml.add_constructor("!UMAPCVSplitter", _umap_cv_splitter_constructor)
+yaml.SafeDumper.add_representer(UMAPCVSplitter, _umap_cv_splitter_representer)
+yaml.SafeLoader.add_constructor("!UMAPCVSplitter", _umap_cv_splitter_constructor)
