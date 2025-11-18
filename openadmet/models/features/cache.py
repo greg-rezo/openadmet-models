@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 import pandas as pd
 from loguru import logger
@@ -114,7 +113,9 @@ def save_features_to_cache(
     cache_key: str, features: np.ndarray, indices: np.ndarray
 ) -> Path:
     """
-    Save featurization results to cache.
+    Save featurization results to cache using compressed NumPy format.
+
+    Uses np.savez_compressed for fast I/O and efficient storage.
 
     Parameters
     ----------
@@ -132,12 +133,12 @@ def save_features_to_cache(
 
     """
     cache_dir = _get_cache_dir()
-    cache_path = cache_dir / f"{cache_key}.pkl"
+    cache_path = cache_dir / f"{cache_key}.npz"
 
-    # Save features and indices together
-    cache_data = {"features": features, "indices": indices}
+    # Save features and indices using compressed NumPy format
+    # This is much faster than pickle for numerical arrays
+    np.savez_compressed(cache_path, features=features, indices=indices)
 
-    joblib.dump(cache_data, cache_path)
     logger.info(
         f"Saved features to cache: {cache_path.name} "
         f"(shape: {features.shape}, {len(indices)} samples)"
@@ -150,7 +151,9 @@ def load_features_from_cache(
     cache_key: str,
 ) -> tuple[np.ndarray, np.ndarray] | None:
     """
-    Load featurization results from cache.
+    Load featurization results from cache using compressed NumPy format.
+
+    Falls back to legacy .pkl format for backward compatibility.
 
     Parameters
     ----------
@@ -164,29 +167,57 @@ def load_features_from_cache(
 
     """
     cache_dir = _get_cache_dir()
-    cache_path = cache_dir / f"{cache_key}.pkl"
+    cache_path_npz = cache_dir / f"{cache_key}.npz"
+    cache_path_pkl = cache_dir / f"{cache_key}.pkl"
 
-    if not cache_path.exists():
-        logger.debug(f"Cache miss: {cache_key}")
-        return None
+    # Try new .npz format first (much faster)
+    if cache_path_npz.exists():
+        try:
+            cache_data = np.load(cache_path_npz)
+            features = cache_data["features"]
+            indices = cache_data["indices"]
+            logger.info(
+                f"Loaded features from cache: {cache_path_npz.name} "
+                f"(shape: {features.shape}, {len(indices)} samples)"
+            )
+            return features, indices
+        except Exception as e:
+            logger.warning(f"Failed to load cache from {cache_path_npz.name}: {e}")
+            return None
 
-    try:
-        cache_data = joblib.load(cache_path)
-        features = cache_data["features"]
-        indices = cache_data["indices"]
-        logger.info(
-            f"Loaded features from cache: {cache_path.name} "
-            f"(shape: {features.shape}, {len(indices)} samples)"
-        )
-        return features, indices
-    except Exception as e:
-        logger.warning(f"Failed to load cache from {cache_path.name}: {e}")
-        return None
+    # Fall back to legacy .pkl format for backward compatibility
+    if cache_path_pkl.exists():
+        try:
+            import joblib  # noqa: PLC0415
+
+            cache_data = joblib.load(cache_path_pkl)
+            features = cache_data["features"]
+            indices = cache_data["indices"]
+            logger.info(
+                f"Loaded features from legacy cache: {cache_path_pkl.name} "
+                f"(shape: {features.shape}, {len(indices)} samples)"
+            )
+
+            # Migrate to new format for future use
+            logger.info("Migrating legacy cache to npz format...")
+            save_features_to_cache(cache_key, features, indices)
+
+            return features, indices
+        except Exception as e:
+            logger.warning(
+                f"Failed to load legacy cache from {cache_path_pkl.name}: {e}"
+            )
+            return None
+
+    logger.debug(f"Cache miss: {cache_key}")
+    return None
 
 
 def clear_cache(max_age_days: int | None = None) -> int:
     """
     Clear the featurization cache.
+
+    Removes both .npz and .pkl cache files.
 
     Parameters
     ----------
@@ -208,25 +239,27 @@ def clear_cache(max_age_days: int | None = None) -> int:
     if not cache_dir.exists():
         return 0
 
-    for cache_file in cache_dir.glob("*.pkl"):
-        should_remove = False
+    # Handle both .npz (new) and .pkl (legacy) formats
+    for pattern in ["*.npz", "*.pkl"]:
+        for cache_file in cache_dir.glob(pattern):
+            should_remove = False
 
-        if max_age_days is None:
-            should_remove = True
-        else:
-            # Check file age
-            file_age_seconds = time.time() - cache_file.stat().st_mtime
-            file_age_days = file_age_seconds / (24 * 3600)
-            if file_age_days > max_age_days:
+            if max_age_days is None:
                 should_remove = True
+            else:
+                # Check file age
+                file_age_seconds = time.time() - cache_file.stat().st_mtime
+                file_age_days = file_age_seconds / (24 * 3600)
+                if file_age_days > max_age_days:
+                    should_remove = True
 
-        if should_remove:
-            try:
-                cache_file.unlink()
-                removed_count += 1
-                logger.debug(f"Removed cache file: {cache_file}")
-            except Exception as e:
-                logger.warning(f"Failed to remove cache file {cache_file}: {e}")
+            if should_remove:
+                try:
+                    cache_file.unlink()
+                    removed_count += 1
+                    logger.debug(f"Removed cache file: {cache_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove cache file {cache_file}: {e}")
 
     logger.info(f"Removed {removed_count} cache files")
     return removed_count
