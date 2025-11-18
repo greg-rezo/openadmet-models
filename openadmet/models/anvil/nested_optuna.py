@@ -45,7 +45,7 @@ class NestedSearchConfig:
     timeout_per_trial_s: int | None = None
     sampler_seed: int | None = None
 
-    scoring: str | None = None
+    scoring: str | dict | None = None
     n_jobs_outer: int = 1  # for cross_validate outer loop
 
     # Custom CV splitter (e.g., for scaffold/cluster-based splits)

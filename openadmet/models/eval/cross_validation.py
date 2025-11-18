@@ -486,16 +486,43 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
             run_nested_optuna_search,
         )
 
-        # Get param distributions from model if not provided
+        # Get param distributions from evaluator config (dict format)
         if self.param_distributions is None:
-            if not hasattr(model, "param_distributions"):
-                raise ValueError(
-                    "Model must have param_distributions attribute or "
-                    "evaluator must be configured with param_distributions"
+            raise ValueError(
+                "Nested CV evaluator requires param_distributions to be "
+                "configured in the evaluator specification"
+            )
+
+        # Convert param distributions from dict format to Optuna objects
+        from optuna.distributions import (
+            CategoricalDistribution,
+            FloatDistribution,
+            IntDistribution,
+        )
+
+        optuna_dists = {}
+        for param_name, dist_config in self.param_distributions.items():
+            dist_type = dist_config["type"]
+            if dist_type == "float":
+                optuna_dists[param_name] = FloatDistribution(
+                    low=dist_config["low"],
+                    high=dist_config["high"],
+                    log=dist_config.get("log", False),
                 )
-            param_distributions = model.param_distributions
-        else:
-            param_distributions = self.param_distributions
+            elif dist_type == "int":
+                optuna_dists[param_name] = IntDistribution(
+                    low=dist_config["low"],
+                    high=dist_config["high"],
+                    log=dist_config.get("log", False),
+                )
+            elif dist_type == "categorical":
+                optuna_dists[param_name] = CategoricalDistribution(
+                    choices=dist_config["choices"]
+                )
+            else:
+                raise ValueError(f"Unknown distribution type: {dist_type}")
+
+        param_distributions = optuna_dists
 
         # Get base estimator
         base_estimator = model.estimator
@@ -507,7 +534,7 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
             inner_cv=self.inner_cv,
             n_trials=self.n_trials,
             sampler_seed=self.sampler_seed,
-            scoring="neg_mean_squared_error",  # Default for regression
+            scoring=self.sklearn_metrics,  # Use same metrics as parent class
             n_jobs_outer=1,
             custom_outer_cv=self.custom_outer_cv,
         )

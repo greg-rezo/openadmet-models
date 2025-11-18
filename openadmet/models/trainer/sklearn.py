@@ -3,14 +3,6 @@
 from typing import Any
 
 from loguru import logger
-from optuna import create_study
-from optuna.distributions import (
-    CategoricalDistribution,
-    FloatDistribution,
-    IntDistribution,
-)
-from optuna.integration import OptunaSearchCV  # type: ignore
-from optuna.samplers import TPESampler
 from sklearn.model_selection import GridSearchCV
 
 from openadmet.models.drivers import DriverType
@@ -128,49 +120,29 @@ class SKLearnGridSearchTrainer(SKLearnSearchTrainer):
 @trainers.register("SKLearnOptunaTrainer")
 class SKLearnOptunaTrainer(SKLearnSearchTrainer):
     """
-    Trainer for sklearn models with nested CV using Optuna.
+    Trainer for sklearn models with Optuna HPO.
 
-    Performs nested cross-validation with Optuna hyperparameter search
-    in the inner loop.
+    Performs HPO on the full dataset to produce the best production model.
+    Nested CV evaluation (separate from training) provides unbiased
+    performance estimates.
 
-    Attributes:
+    Attributes
     ----------
     param_distributions : dict
-        Parameter distributions for Optuna search. Each key is a parameter
-        name and each value is a dict with 'type' and distribution args.
-
-    Example:
-            {
-                "learning_rate": {"type": "float", "low": 0.01, "high": 0.3,
-                                  "log": True},
-                "n_estimators": {"type": "int", "low": 10, "high": 100}
-            }
-    outer_n_splits : int
-        Number of outer CV splits (default: 5).
-    outer_repeats : int
-        Number of outer CV repeats (default: 1).
-    inner_cv : int
-        Number of inner CV splits for Optuna (default: 3).
+        Parameter distributions for Optuna search in dict format.
     n_trials : int
         Number of Optuna trials (default: 50).
     sampler_seed : int | None
         Random seed for Optuna sampler (default: None).
     scoring : str | None
         Scoring metric for evaluation (default: None).
-    n_jobs_outer : int
-        Number of parallel jobs for outer CV (default: 1).
 
     """
 
     param_distributions: dict[str, dict[str, Any]] = {}
-    outer_n_splits: int = 5
-    outer_repeats: int = 1
-    inner_cv: int = 3
     n_trials: int = 50
     sampler_seed: int | None = None
     scoring: str | None = None
-    n_jobs_outer: int = 1
-    custom_outer_cv: Any | None = None  # Custom CV splitter for nested CV
 
     def _convert_param_distributions(
         self, param_dists: dict[str, dict[str, Any]]
@@ -185,6 +157,12 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
             Dictionary with Optuna distribution objects.
 
         """
+        from optuna.distributions import (
+            CategoricalDistribution,
+            FloatDistribution,
+            IntDistribution,
+        )
+
         converted = {}
         for param_name, dist_config in param_dists.items():
             dist_type = dist_config["type"]
@@ -210,7 +188,10 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
 
     def train(self, X: Any, y: Any):
         """
-        Train the model using nested CV with Optuna.
+        Train the model with HPO on full dataset.
+
+        Uses Optuna to find the best hyperparameters, then trains the final
+        production model with those hyperparameters on the full dataset.
 
         Parameters
         ----------
@@ -222,21 +203,20 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         Returns
         -------
         ModelBase
-            The trained model with best estimator from first outer fold.
+            The trained model with optimized hyperparameters.
 
         """
+        from optuna import create_study
+        from optuna.integration import OptunaSearchCV  # type: ignore
+        from optuna.samplers import TPESampler
+
         sklearn_model = self.model.estimator
 
         # Convert param distributions from dict to Optuna objects
         optuna_dists = self._convert_param_distributions(self.param_distributions)
 
-        # Store param distributions on model for evaluator to access
-        self.model.param_distributions = optuna_dists
-
         # Run Optuna search on full dataset for production model
-        logger.info(
-            f"Running final Optuna search on full dataset (n_trials={self.n_trials})"
-        )
+        logger.info(f"Running Optuna HPO on full dataset (n_trials={self.n_trials})")
         sampler = (
             TPESampler(seed=self.sampler_seed)
             if self.sampler_seed is not None
@@ -244,25 +224,25 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         )
         study = create_study(sampler=sampler, direction="maximize")
 
-        final_search = OptunaSearchCV(
+        search = OptunaSearchCV(
             estimator=sklearn_model,
             param_distributions=optuna_dists,
             n_trials=self.n_trials,
-            cv=5,  # Simple 5-fold CV on full dataset
+            cv=5,  # Simple 5-fold CV for HPO
             scoring=self.scoring,
             study=study,
             n_jobs=1,
             verbose=0,
             return_train_score=False,
         )
-        final_search.fit(X, y)
+        search.fit(X, y)
 
-        # Use final search results for production model
-        self.search = final_search
-        self.model.estimator = final_search.best_estimator_
+        # Use best estimator for production model
+        self.search = search
+        self.model.estimator = search.best_estimator_
         self.model.__dict__.update(self.model.estimator.get_params())
 
-        logger.info(f"Final best params: {final_search.best_params_}")
-        logger.info(f"Final CV score: {final_search.best_score_:.4f}")
+        logger.info(f"Best params: {search.best_params_}")
+        logger.info(f"Best CV score: {search.best_score_:.4f}")
 
         return self.model
