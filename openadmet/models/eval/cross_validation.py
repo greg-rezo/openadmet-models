@@ -409,6 +409,9 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
     inner_cv: int = Field(3, description="Number of inner CV folds for HPO")
     n_trials: int = Field(50, description="Number of Optuna trials for HPO")
     sampler_seed: int | None = Field(None, description="Random seed for Optuna sampler")
+    hpo_scoring: str | None = Field(
+        None, description="Scoring metric for HPO (e.g., 'neg_mean_squared_error')"
+    )
     custom_outer_cv: Any | None = Field(
         None, description="Custom CV splitter for outer loop"
     )
@@ -486,6 +489,9 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
             run_nested_optuna_search,
         )
 
+        # Store metric names and callables (needed for scoring)
+        self.sklearn_metrics = {k: v[0] for k, v in self._metrics.items()}
+
         # Get param distributions from evaluator config (dict format)
         if self.param_distributions is None:
             raise ValueError(
@@ -528,13 +534,16 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
         base_estimator = model.estimator
 
         # Configure nested search
+        # Note: OptunaSearchCV (inner HPO) uses a single metric, but
+        # cross_validate (outer evaluation) can compute multiple metrics
         cfg = NestedSearchConfig(
             outer_n_splits=self.n_splits,
             outer_repeats=self.n_repeats,
             inner_cv=self.inner_cv,
             n_trials=self.n_trials,
             sampler_seed=self.sampler_seed,
-            scoring=self.sklearn_metrics,  # Use same metrics as parent class
+            scoring=self.sklearn_metrics,  # Multiple metrics for outer CV
+            hpo_scoring=self.hpo_scoring,  # Single metric for HPO
             n_jobs_outer=1,
             custom_outer_cv=self.custom_outer_cv,
         )
@@ -551,9 +560,6 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
         # Extract scores from nested CV results
         # The outer_cv_results contains sklearn cross_validate output
         cv_scores = results["outer_cv_results"]
-
-        # Store metric names and callables
-        self.sklearn_metrics = {k: v[0] for k, v in self._metrics.items()}
 
         n_tasks = 1
         if target_labels is None:

@@ -45,7 +45,8 @@ class NestedSearchConfig:
     timeout_per_trial_s: int | None = None
     sampler_seed: int | None = None
 
-    scoring: str | dict | None = None
+    scoring: str | dict | None = None  # Metrics for outer CV evaluation
+    hpo_scoring: str | None = None  # Metric for inner HPO optimization
     n_jobs_outer: int = 1  # for cross_validate outer loop
 
     # Custom CV splitter (e.g., for scaffold/cluster-based splits)
@@ -130,12 +131,22 @@ def _make_optuna_search(
     )
     study = create_study(sampler=sampler, direction="maximize")
 
+    # OptunaSearchCV requires a single scoring metric for HPO
+    # Use hpo_scoring if provided, otherwise extract from scoring dict
+    if cfg.hpo_scoring:
+        hpo_scoring = cfg.hpo_scoring
+    elif isinstance(cfg.scoring, dict):
+        # Fall back to first metric if hpo_scoring not specified
+        hpo_scoring = list(cfg.scoring.values())[0]
+    else:
+        hpo_scoring = cfg.scoring
+
     search = OptunaSearchCV(
         estimator=base_estimator,
         param_distributions=param_distributions,
         n_trials=cfg.n_trials,
         cv=cfg.inner_cv,
-        scoring=cfg.scoring,
+        scoring=hpo_scoring,
         study=study,
         n_jobs=1,  # Always use 1 to avoid nested parallelism with outer CV
         verbose=0,

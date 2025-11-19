@@ -215,21 +215,29 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         # Convert param distributions from dict to Optuna objects
         optuna_dists = self._convert_param_distributions(self.param_distributions)
 
-        # Run Optuna search on full dataset for production model
-        logger.info(f"Running Optuna HPO on full dataset (n_trials={self.n_trials})")
+        # Run Optuna HPO for production model using CV to prevent overfitting
+        logger.info(f"Running Optuna HPO with CV validation (n_trials={self.n_trials})")
         sampler = (
             TPESampler(seed=self.sampler_seed)
             if self.sampler_seed is not None
             else TPESampler()
         )
+
+        # Use negative MSE for HPO if not specified (more stable than R²)
+        hpo_scoring = self.scoring if self.scoring else "neg_mean_squared_error"
+
+        # sklearn scorers follow convention: higher is better
+        # All neg_* metrics are already negated, so we always maximize
         study = create_study(sampler=sampler, direction="maximize")
 
+        # Use simple 5-fold CV for HPO (to prevent overfitting)
+        # Nested CV in evaluation provides proper performance estimation
         search = OptunaSearchCV(
             estimator=sklearn_model,
             param_distributions=optuna_dists,
             n_trials=self.n_trials,
-            cv=5,  # Simple 5-fold CV for HPO
-            scoring=self.scoring,
+            cv=5,  # Simple 5-fold CV to prevent overfitting during HPO
+            scoring=hpo_scoring,
             study=study,
             n_jobs=1,
             verbose=0,
@@ -237,12 +245,16 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         )
         search.fit(X, y)
 
-        # Use best estimator for production model
-        self.search = search
-        self.model.estimator = search.best_estimator_
-        self.model.__dict__.update(self.model.estimator.get_params())
-
-        logger.info(f"Best params: {search.best_params_}")
+        best_params = search.best_params_
+        logger.info(f"Best params from HPO: {best_params}")
         logger.info(f"Best CV score: {search.best_score_:.4f}")
+
+        # Retrain final model with best hyperparameters on full dataset
+        final_model = sklearn_model.__class__(**best_params)
+        final_model.fit(X, y)
+
+        self.search = search
+        self.model.estimator = final_model
+        self.model.__dict__.update(final_model.get_params())
 
         return self.model
