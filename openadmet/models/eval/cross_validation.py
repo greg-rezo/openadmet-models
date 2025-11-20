@@ -176,16 +176,15 @@ class SKLearnRepeatedKFoldCrossValidation(CrossValidationBase):
             model is None
             or X_train is None
             or y_train is None
-            or y_pred is None
-            or y_true is None
             or X_all is None
             or y_all is None
         ):
             raise ValueError(
-                "model, X_train, y_train, y_pred, y_true, X_all, y_all must be provided"
+                "model, X_train, y_train, X_all, y_all must be provided"
             )
 
-        if isinstance(y_true, (pd.Series, pd.DataFrame)):
+        # y_pred and y_true are optional for CV evaluation
+        if y_true is not None and isinstance(y_true, (pd.Series, pd.DataFrame)):
             y_true = y_true.to_numpy()
 
         # store the metric names and callables in dict suitable for sklearn cross_validate
@@ -263,7 +262,7 @@ class SKLearnRepeatedKFoldCrossValidation(CrossValidationBase):
         for plot_tag, plot in self.plots.items():
             if "ciplot" in plot_tag:
                 self.plot_data[plot_tag] = plot(stat_dict=stat_dict)
-            elif "regplot" in plot_tag:
+            elif "regplot" in plot_tag and y_pred is not None and y_true is not None:
                 self.plot_data[plot_tag] = plot(
                     y_true,
                     y_pred,
@@ -469,16 +468,15 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
             model is None
             or X_train is None
             or y_train is None
-            or y_pred is None
-            or y_true is None
             or X_all is None
             or y_all is None
         ):
             raise ValueError(
-                "model, X_train, y_train, y_pred, y_true, X_all, y_all must be provided"
+                "model, X_train, y_train, X_all, y_all must be provided"
             )
 
-        if isinstance(y_true, (pd.Series, pd.DataFrame)):
+        # y_pred and y_true are optional for CV evaluation
+        if y_true is not None and isinstance(y_true, (pd.Series, pd.DataFrame)):
             y_true = y_true.to_numpy()
         if isinstance(y_all, (pd.Series, pd.DataFrame)):
             y_all = y_all.to_numpy()
@@ -620,7 +618,7 @@ class SKLearnRepeatedNestedKFoldCrossValidation(SKLearnRepeatedKFoldCrossValidat
         for plot_tag, plot in self.plots.items():
             if "ciplot" in plot_tag:
                 self.plot_data[plot_tag] = plot(stat_dict=stat_dict)
-            elif "regplot" in plot_tag:
+            elif "regplot" in plot_tag and y_pred is not None and y_true is not None:
                 self.plot_data[plot_tag] = plot(
                     y_true,
                     y_pred,

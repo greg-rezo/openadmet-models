@@ -17,6 +17,7 @@ import numpy as np
 import yaml
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.model_selection import BaseCrossValidator
+from sklearn.utils.multiclass import type_of_target
 from umap import UMAP
 
 logger = logging.getLogger(__name__)
@@ -179,7 +180,7 @@ class UMAPCVSplitter(BaseCrossValidator):
                 original_to_unique_map[i] = feature_to_unique_idx[feature_tuple]
 
         unique_X = np.array(unique_features)
-        logger.info(f"Deduplication: {len(X)} -> {len(unique_X)} unique features")
+        logger.debug(f"Deduplication: {len(X)} -> {len(unique_X)} unique features")
 
         return unique_X, original_to_unique_map
 
@@ -207,7 +208,7 @@ class UMAPCVSplitter(BaseCrossValidator):
             )
 
         # Apply UMAP to unique features only
-        logger.info("Computing UMAP embedding")
+        logger.debug("Computing UMAP embedding")
         n_neighbors_adj = min(self.n_neighbors, len(unique_X) - 1)
         reducer = UMAP(
             n_components=2,
@@ -263,7 +264,7 @@ class UMAPCVSplitter(BaseCrossValidator):
             Initial fold assignments array
 
         """
-        logger.info(
+        logger.debug(
             f"Creating {self.n_splits} spatially contiguous regions "
             f"with agglomerative clustering"
         )
@@ -341,8 +342,16 @@ class UMAPCVSplitter(BaseCrossValidator):
             Updated fold assignments array
 
         """
+        # Skip class balancing for continuous targets (regression)
+        target_type = type_of_target(y)
+        if target_type == "continuous":
+            logger.debug(
+                "Skipping class balance enforcement for continuous target"
+            )
+            return fold_assignments
+
         unique_classes = np.unique(y)
-        logger.info("Ensuring class balance in each fold")
+        logger.debug("Ensuring class balance in each fold")
 
         max_iterations = 100
         for iteration in range(max_iterations):
@@ -355,7 +364,7 @@ class UMAPCVSplitter(BaseCrossValidator):
                 min_per_fold = self._calculate_min_samples_per_fold(n_class_samples)
 
                 if iteration == 0:
-                    logger.info(
+                    logger.debug(
                         f"Class {class_val}: {n_class_samples} samples, "
                         f"min {min_per_fold} per fold"
                     )
@@ -371,7 +380,7 @@ class UMAPCVSplitter(BaseCrossValidator):
                 )
 
             if all_satisfied:
-                logger.info(f"Class balance satisfied after {iteration + 1} iterations")
+                logger.debug(f"Class balance satisfied after {iteration + 1} iterations")
                 break
 
         return fold_assignments

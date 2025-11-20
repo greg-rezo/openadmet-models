@@ -393,11 +393,22 @@ class AnvilWorkflow(AnvilWorkflowBase):
             y_std = None
             logger.info("No test set specified, predictions skipped")
 
-        if y_pred is not None:
-            # Run evaluation on train/test
-            logger.info("Evaluating")
-            for eval in self.evals:
-                # Here all the data is passed to the evaluator, but some evaluators may only need a subset
+        # Separate CV evaluators from test-based evaluators
+        from openadmet.models.eval.cross_validation import (
+            CrossValidationBase,
+        )
+
+        cv_evals = [
+            eval for eval in self.evals if isinstance(eval, CrossValidationBase)
+        ]
+        test_evals = [
+            eval for eval in self.evals if not isinstance(eval, CrossValidationBase)
+        ]
+
+        # Always run CV evaluators (they don't need test predictions)
+        if cv_evals:
+            logger.info("Running CV evaluation")
+            for eval in cv_evals:
                 eval.evaluate(
                     y_true=y_test,
                     y_pred=y_pred,
@@ -410,13 +421,29 @@ class AnvilWorkflow(AnvilWorkflowBase):
                     tag=model_tag,
                     target_labels=target_labels,
                 )
-
-                # Write evaluation report
                 eval.report(write=True, output_dir=output_dir)
+            logger.info("CV evaluation done")
 
-            logger.info("Evaluation done")
-        else:
-            logger.info("No test set specified, evaluation skipped")
+        # Run test-based evaluators only if we have test predictions
+        if y_pred is not None and test_evals:
+            logger.info("Running test set evaluation")
+            for eval in test_evals:
+                eval.evaluate(
+                    y_true=y_test,
+                    y_pred=y_pred,
+                    y_std=y_std,
+                    model=self.model,
+                    X_train=X_train_feat,
+                    y_train=y_train,
+                    X_all=X_feat,
+                    y_all=y,
+                    tag=model_tag,
+                    target_labels=target_labels,
+                )
+                eval.report(write=True, output_dir=output_dir)
+            logger.info("Test set evaluation done")
+        elif test_evals:
+            logger.info("No test set specified, test-based evaluation skipped")
 
 
 class AnvilDeepLearningWorkflow(AnvilWorkflowBase):
@@ -831,16 +858,25 @@ class AnvilDeepLearningWorkflow(AnvilWorkflowBase):
         else:
             logger.info("No test set specified, predictions skipped")
 
-        if y_test is not None:
-            # Run evaluation on train/test
-            logger.info("Evaluating")
+        # Separate CV evaluators from test-based evaluators
+        from openadmet.models.eval.cross_validation import (
+            CrossValidationBase,
+        )
 
-            # Get wandb bool from trainer
-            use_wandb = self.trainer.use_wandb
+        cv_evals = [
+            eval for eval in self.evals if isinstance(eval, CrossValidationBase)
+        ]
+        test_evals = [
+            eval for eval in self.evals if not isinstance(eval, CrossValidationBase)
+        ]
 
-            # Run evaluation on train/test
-            for eval in self.evals:
-                # Here all the data is passed to the evaluator, but some evaluators may only need a subset
+        # Get wandb bool from trainer
+        use_wandb = self.trainer.use_wandb
+
+        # Always run CV evaluators (they don't need test predictions)
+        if cv_evals:
+            logger.info("Running CV evaluation")
+            for eval in cv_evals:
                 eval.evaluate(
                     y_true=y_test,
                     y_pred=y_pred,
@@ -856,13 +892,32 @@ class AnvilDeepLearningWorkflow(AnvilWorkflowBase):
                     tag=model_tag,
                     target_labels=target_labels,
                 )
-
-                # Write evaluation report
                 eval.report(write=True, output_dir=output_dir)
+            logger.info("CV evaluation done")
 
-            logger.info("Evaluation done")
-        else:
-            logger.info("No test set specified, evaluation skipped")
+        # Run test-based evaluators only if we have test data
+        if y_test is not None and test_evals:
+            logger.info("Running test set evaluation")
+            for eval in test_evals:
+                eval.evaluate(
+                    y_true=y_test,
+                    y_pred=y_pred,
+                    y_std=y_std,
+                    model=self.model,
+                    X_train=train_dataloader,
+                    y_train=train_dataloader,
+                    X_all=X,
+                    y_all=y,
+                    featurizer=self.feat,
+                    trainer=self.trainer,
+                    use_wandb=use_wandb,
+                    tag=model_tag,
+                    target_labels=target_labels,
+                )
+                eval.report(write=True, output_dir=output_dir)
+            logger.info("Test set evaluation done")
+        elif test_evals:
+            logger.info("No test set specified, test-based evaluation skipped")
 
 
 _DRIVER_TO_CLASS = {

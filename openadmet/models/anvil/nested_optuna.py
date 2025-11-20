@@ -68,7 +68,7 @@ def _make_outer_cv(cfg: NestedSearchConfig, y: np.ndarray):
     """
     # Use custom splitter if provided (e.g., scaffold/cluster-based)
     if cfg.custom_outer_cv is not None:
-        logger.info(
+        logger.debug(
             f"Using custom outer CV splitter: {cfg.custom_outer_cv.__class__.__name__}"
         )
         return cfg.custom_outer_cv
