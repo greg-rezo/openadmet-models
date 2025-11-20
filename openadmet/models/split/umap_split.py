@@ -345,9 +345,7 @@ class UMAPCVSplitter(BaseCrossValidator):
         # Skip class balancing for continuous targets (regression)
         target_type = type_of_target(y)
         if target_type == "continuous":
-            logger.debug(
-                "Skipping class balance enforcement for continuous target"
-            )
+            logger.debug("Skipping class balance enforcement for continuous target")
             return fold_assignments
 
         unique_classes = np.unique(y)
@@ -380,7 +378,9 @@ class UMAPCVSplitter(BaseCrossValidator):
                 )
 
             if all_satisfied:
-                logger.debug(f"Class balance satisfied after {iteration + 1} iterations")
+                logger.debug(
+                    f"Class balance satisfied after {iteration + 1} iterations"
+                )
                 break
 
         return fold_assignments
@@ -481,14 +481,25 @@ class UMAPCVSplitter(BaseCrossValidator):
             fold_assignments: Final fold assignments
 
         """
-        for f in range(self.n_splits):
-            fold_mask = fold_assignments == f
-            y_fold = y[fold_mask]
-            unique_fold, counts_fold = np.unique(y_fold, return_counts=True)
+        target_type = type_of_target(y)
+        is_continuous = target_type == "continuous"
+
+        # For continuous targets, just show counts on one line
+        if is_continuous:
+            fold_counts = [np.sum(fold_assignments == f) for f in range(self.n_splits)]
             logger.info(
-                f"Fold {f}: {len(y_fold)} samples, "
-                f"classes={dict(zip(unique_fold, counts_fold))}"
+                f"Fold sizes: {', '.join(f'fold {i}: {c}' for i, c in enumerate(fold_counts))}"
             )
+        else:
+            # For classification, show class distribution per fold
+            for f in range(self.n_splits):
+                fold_mask = fold_assignments == f
+                y_fold = y[fold_mask]
+                unique_fold, counts_fold = np.unique(y_fold, return_counts=True)
+                logger.info(
+                    f"Fold {f}: {len(y_fold)} samples, "
+                    f"classes={dict(zip(unique_fold, counts_fold))}"
+                )
 
 
 # Register YAML representer and constructor for UMAPCVSplitter
