@@ -10,7 +10,7 @@ import torch
 from class_registry import ClassRegistry, RegistryKeyError
 from lightning import pytorch as pl
 from loguru import logger
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from openadmet.models.drivers import DriverType
 
 models = ClassRegistry(unique=True)
@@ -27,6 +27,9 @@ def get_mod_class(model_type):
 
 class ModelBase(BaseModel, ABC):
     """Base class for all models."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
 
     _estimator: Any = None
     _model_json_name: ClassVar[str] = "model.json"
