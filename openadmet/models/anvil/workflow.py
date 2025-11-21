@@ -857,6 +857,8 @@ class AnvilDeepLearningWorkflow(AnvilWorkflowBase):
             logger.info("Predictions made")
         else:
             logger.info("No test set specified, predictions skipped")
+            y_pred = None
+            y_std = None
 
         # Separate CV evaluators from test-based evaluators
         from openadmet.models.eval.cross_validation import (
