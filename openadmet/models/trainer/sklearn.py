@@ -3,6 +3,7 @@
 from typing import Any
 
 from loguru import logger
+from sklearn.base import clone
 from sklearn.model_selection import GridSearchCV
 
 from openadmet.models.drivers import DriverType
@@ -250,7 +251,8 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
         logger.info(f"Best CV score: {search.best_score_:.4f}")
 
         # Retrain final model with best hyperparameters on full dataset
-        final_model = sklearn_model.__class__(**best_params)
+        final_model = clone(sklearn_model)
+        final_model.set_params(**best_params)
         final_model.fit(X, y)
 
         self.search = search
