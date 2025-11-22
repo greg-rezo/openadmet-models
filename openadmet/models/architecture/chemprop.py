@@ -21,6 +21,34 @@ _METRIC_TO_LOSS = {
 }
 
 
+class MPNN(models.MPNN):
+    """
+    MPNN subclass that handles YAML serialization of hyperparameters.
+
+    The base ChemProp MPNN class contains non-YAML-serializable objects
+    (metrics, message_passing, agg, predictor) in hyperparameters, which
+    causes errors when PyTorch Lightning saves checkpoints. This subclass
+    overrides __getstate__ to exclude these objects during serialization.
+    """
+
+    def __getstate__(self):
+        """
+        Get state for serialization, excluding non-YAML-serializable params.
+
+        Returns
+        -------
+        dict
+            State dictionary with non-serializable hyperparameters removed.
+        """
+        state = super().__getstate__()
+        # Remove non-YAML-serializable objects from hyperparameters
+        if "hyper_parameters" in state:
+            hparams = state["hyper_parameters"]
+            for key in ["metrics", "message_passing", "agg", "predictor"]:
+                hparams.pop(key, None)
+        return state
+
+
 @model_registry.register("ChemPropModel")
 class ChemPropModel(LightningModelBase):
     """
@@ -252,7 +280,7 @@ class ChemPropModel(LightningModelBase):
             )
 
             # Create the MPNN model
-            mpnn = models.MPNN(
+            mpnn = MPNN(
                 message_passing=mp,
                 agg=aggr,
                 predictor=ffn,

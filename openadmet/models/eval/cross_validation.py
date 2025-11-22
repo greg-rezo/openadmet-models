@@ -855,7 +855,6 @@ class PytorchLightningRepeatedKFoldCrossValidation(CrossValidationBase):
                 accelerator=trainer.accelerator,
                 devices=trainer.devices,
                 use_wandb=False,
-                logger=False,  # Disable logging for CV folds to avoid YAML serialization issues
                 output_dir=trainer.output_dir / "cv" / f"fold_{str(fold)}",
                 wandb_project=trainer.wandb_project,
             )
