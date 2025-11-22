@@ -13,6 +13,7 @@ from pydantic import field_validator, model_validator
 
 from openadmet.models.architecture.model_base import LightningModelBase
 from openadmet.models.architecture.model_base import models as model_registry
+from pydantic import model_serializer
 
 _METRIC_TO_LOSS = {
     "mse": nn.metrics.MSE(),
@@ -23,30 +24,21 @@ _METRIC_TO_LOSS = {
 
 class MPNN(models.MPNN):
     """
-    MPNN subclass that handles YAML serialization of hyperparameters.
+    MPNN subclass that excludes non-serializable hyperparameters.
 
-    The base ChemProp MPNN class contains non-YAML-serializable objects
+    The base ChemProp MPNN class stores non-YAML-serializable objects
     (metrics, message_passing, agg, predictor) in hyperparameters, which
     causes errors when PyTorch Lightning saves checkpoints. This subclass
-    overrides __getstate__ to exclude these objects during serialization.
+    excludes these objects from hyperparameter saving.
     """
 
-    def __getstate__(self):
-        """
-        Get state for serialization, excluding non-YAML-serializable params.
-
-        Returns
-        -------
-        dict
-            State dictionary with non-serializable hyperparameters removed.
-        """
-        state = super().__getstate__()
-        # Remove non-YAML-serializable objects from hyperparameters
-        if "hyper_parameters" in state:
-            hparams = state["hyper_parameters"]
-            for key in ["metrics", "message_passing", "agg", "predictor"]:
-                hparams.pop(key, None)
-        return state
+    def __init__(self, *args, **kwargs):
+        """Initialize MPNN and exclude non-serializable hyperparameters."""
+        super().__init__(*args, **kwargs)
+        # Remove non-YAML-serializable objects that parent class saved
+        # save_hyperparameters(ignore=[...]) doesn't work because parent already saved them
+        for key in ["metrics", "message_passing", "agg", "predictor", "X_d_transform"]:
+            self.hparams.pop(key, None)
 
 
 @model_registry.register("ChemPropModel")
@@ -179,6 +171,37 @@ class ChemPropModel(LightningModelBase):
         if value not in ["mean", "norm"]:
             raise ValueError("Aggregation must be either 'mean' or 'norm'")
         return value
+
+    @model_serializer
+    def serialize_model(self):
+        """
+        Custom serializer that filters out non-YAML-serializable fields.
+
+        Iterates through each field and tests if it can be serialized to YAML.
+        This prevents errors when saving the model config.
+
+        Returns
+        -------
+        dict
+            Serialized model data with only YAML-serializable fields.
+        """
+        import yaml
+
+        data = {}
+        for key, value in self.__dict__.items():
+            # Always skip the estimator
+            if key == "_estimator":
+                continue
+
+            # Test if the value is YAML-serializable
+            try:
+                yaml.safe_dump({key: value})
+                data[key] = value
+            except Exception:
+                # Skip non-serializable fields
+                logger.debug(f"Skipping non-YAML-serializable field: {key}")
+
+        return data
 
     def _get_output_transform(self, scaler):
         """
