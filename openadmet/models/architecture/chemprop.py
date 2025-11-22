@@ -321,7 +321,7 @@ class ChemPropModel(LightningModelBase):
 
         with torch.inference_mode():
             trainer = pl.Trainer(
-                logger=None,
+                logger=False,  # Disable logging to avoid YAML serialization errors
                 enable_progress_bar=False,
                 accelerator=accelerator,
                 devices=devices,
