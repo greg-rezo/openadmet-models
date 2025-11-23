@@ -3,6 +3,7 @@
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -11,7 +12,7 @@ from openadmet.models.eval.cross_validation import (
     PytorchLightningRepeatedKFoldCrossValidation,
 )
 from openadmet.models.features.chemprop import ChemPropFeaturizer
-from openadmet.models.split.basic import ShuffleSplitter
+from openadmet.models.split.sklearn import ShuffleSplitter
 from openadmet.models.trainer.lightning import LightningTrainer
 
 
@@ -54,9 +55,11 @@ def test_chemprop_cv_yaml_serialization():
         "target": target_values,
     })
     
-    # Create featurizer
+    # Create featurizer (CV evaluator will call it internally)
     featurizer = ChemPropFeaturizer()
-    X = featurizer.fit_transform(df, input_cols=["smiles"])
+
+    # CV evaluator expects DataFrames, not DataLoaders
+    X = df[["smiles"]]
     y = df[["target"]]
     
     # Create model
