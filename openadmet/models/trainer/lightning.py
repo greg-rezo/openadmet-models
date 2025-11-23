@@ -160,8 +160,11 @@ class LightningTrainer(TrainerBase):
                 )
                 self._logger.append(self.wandb_logger)
 
-            # Append CSV logger
-            self._logger.append(CSVLogger(self.output_dir / "logs", name="model"))
+            # Skip CSV logger for ChemProp models due to non-serializable hyperparameters
+            # ChemProp stores nn.Module objects in hparams which cannot be serialized to YAML
+            from openadmet.models.architecture.chemprop import ChemPropModel
+            if not isinstance(self.model, ChemPropModel):
+                self._logger.append(CSVLogger(self.output_dir / "logs", name="model"))
         elif self.logger is False:
             # Disable all logging
             self._logger = False

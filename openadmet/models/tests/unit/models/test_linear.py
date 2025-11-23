@@ -214,8 +214,10 @@ def test_ridge_with_gridsearchcv_and_imputation():
 
     # Simulate what SKLearnGridSearchTrainer does:
     # Use GridSearchCV on the underlying sklearn estimator
+    # When imputation is enabled, the estimator is a Pipeline, so param names
+    # must be prefixed with the pipeline step name (e.g., "model__alpha")
     sklearn_model = model.estimator
-    param_grid = {"alpha": [0.1, 1.0, 10.0]}
+    param_grid = {"model__alpha": [0.1, 1.0, 10.0]}
     grid_search = GridSearchCV(sklearn_model, param_grid=param_grid, cv=3)
 
     # Fit the GridSearchCV

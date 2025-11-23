@@ -30,6 +30,22 @@ class LinearModelBase(PickleableModelBase):
     # Imputation parameter
     use_mean_imputation: bool = False
 
+    @property
+    def _imputer(self):
+        """
+        Get the imputer from the pipeline if it exists.
+
+        Returns
+        -------
+        SimpleImputer or None
+            The imputer if the model uses a pipeline with imputation,
+            None otherwise.
+
+        """
+        if isinstance(self.estimator, Pipeline):
+            return self.estimator.named_steps.get("imputer")
+        return None
+
     def build(self):
         """
         Prepare the model.
@@ -224,6 +240,22 @@ class LogisticRegressionBase(PickleableModelBase):
 
     # Imputation parameter
     use_mean_imputation: bool = False
+
+    @property
+    def _imputer(self):
+        """
+        Get the imputer from the pipeline if it exists.
+
+        Returns
+        -------
+        SimpleImputer or None
+            The imputer if the model uses a pipeline with imputation,
+            None otherwise.
+
+        """
+        if isinstance(self.estimator, Pipeline):
+            return self.estimator.named_steps.get("imputer")
+        return None
 
     def build(self):
         """

@@ -24,21 +24,16 @@ _METRIC_TO_LOSS = {
 
 class MPNN(models.MPNN):
     """
-    MPNN subclass that excludes non-serializable hyperparameters.
+    MPNN subclass that handles non-serializable hyperparameters.
 
     The base ChemProp MPNN class stores non-YAML-serializable objects
     (metrics, message_passing, agg, predictor) in hyperparameters, which
-    causes errors when PyTorch Lightning saves checkpoints. This subclass
-    excludes these objects from hyperparameter saving.
+    causes errors when PyTorch Lightning's CSV logger tries to save them.
+    This is handled by disabling the CSV logger for ChemProp models in
+    the LightningTrainer.
     """
 
-    def __init__(self, *args, **kwargs):
-        """Initialize MPNN and exclude non-serializable hyperparameters."""
-        super().__init__(*args, **kwargs)
-        # Remove non-YAML-serializable objects that parent class saved
-        # save_hyperparameters(ignore=[...]) doesn't work because parent already saved them
-        for key in ["metrics", "message_passing", "agg", "predictor", "X_d_transform"]:
-            self.hparams.pop(key, None)
+    pass
 
 
 @model_registry.register("ChemPropModel")
