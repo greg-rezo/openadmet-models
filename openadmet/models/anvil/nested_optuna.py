@@ -134,7 +134,13 @@ def _make_optuna_search(
     # OptunaSearchCV requires a single scoring metric for HPO
     # Use hpo_scoring if provided, otherwise extract from scoring dict
     if cfg.hpo_scoring:
-        hpo_scoring = cfg.hpo_scoring
+        # If hpo_scoring is provided and scoring is a dict, look up the scorer
+        if isinstance(cfg.scoring, dict):
+            # Try to get the scorer object from the dict, fall back to string
+            # This handles custom metrics like 'spearmanr' and 'ktau'
+            hpo_scoring = cfg.scoring.get(cfg.hpo_scoring, cfg.hpo_scoring)
+        else:
+            hpo_scoring = cfg.hpo_scoring
     elif isinstance(cfg.scoring, dict):
         # Fall back to first metric if hpo_scoring not specified
         hpo_scoring = list(cfg.scoring.values())[0]
