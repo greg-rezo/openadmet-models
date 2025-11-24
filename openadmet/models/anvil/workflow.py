@@ -18,6 +18,11 @@ from pydantic import model_validator
 
 from openadmet.models.anvil import Drivers
 from openadmet.models.anvil.workflow_base import AnvilWorkflowBase
+from openadmet.models.features.cache import (
+    generate_cache_key,
+    load_features_from_cache,
+    save_features_to_cache,
+)
 
 
 def _safe_to_numpy(X):
@@ -91,6 +96,49 @@ class AnvilWorkflow(AnvilWorkflowBase):
 
         # All fine-tuning paths are None
         return self
+
+    def _featurize_with_cache(self, smiles: pd.Series) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Featurize SMILES strings with caching.
+
+        Parameters
+        ----------
+        smiles : pd.Series
+            SMILES strings to featurize.
+
+        Returns
+        -------
+        tuple
+            Tuple of (features, indices).
+
+        """
+        # Generate cache key from featurizer config and SMILES
+        featurizer_params = {
+            k: v for k, v in self.feat.model_dump().items() if k != "featurizers"
+        }
+
+        # Add sub-featurizer configs for FeatureConcatenator
+        if hasattr(self.feat, "featurizers"):
+            featurizer_params["featurizers"] = {
+                feat.__class__.__name__: feat.model_dump()
+                for feat in self.feat.featurizers
+            }
+
+        featurizer_type = self.feat.__class__.__name__
+        cache_key = generate_cache_key(smiles, featurizer_type, featurizer_params)
+
+        # Try to load from cache
+        cached_result = load_features_from_cache(cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        # Cache miss - compute features
+        features, indices = self.feat.featurize(smiles)
+
+        # Save to cache
+        save_features_to_cache(cache_key, features, indices)
+
+        return features, indices
 
     def _train(self, X_train_feat, y_train, output_dir):
         X_train_feat = _safe_to_numpy(X_train_feat)
@@ -266,7 +314,7 @@ class AnvilWorkflow(AnvilWorkflowBase):
 
         # Featurize full dataset once (more efficient caching)
         logger.info("Featurizing data")
-        X_feat, feat_indices = self.feat.featurize(X)
+        X_feat, feat_indices = self._featurize_with_cache(X)
 
         # Map featurized indices back to original indices
         # (some molecules may fail featurization)

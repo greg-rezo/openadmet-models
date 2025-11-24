@@ -5,16 +5,10 @@ from typing import Any, ClassVar
 
 import datamol as dm
 import numpy as np
-import pandas as pd
 from molfeat.trans import MoleculeTransformer
 from molfeat.trans.fp import FPVecTransformer
 from pydantic import Field
 
-from openadmet.models.features.cache import (
-    generate_cache_key,
-    load_features_from_cache,
-    save_features_to_cache,
-)
 from openadmet.models.features.feature_base import MolfeatFeaturizer, featurizers
 
 
@@ -40,6 +34,11 @@ class FingerprintFeaturizer(MolfeatFeaturizer):
     fp_type: str = Field(
         ..., title="Fingerprint type", description="The type of fingerprint to use"
     )
+    length: int | None = Field(
+        None,
+        title="Fingerprint length",
+        description="The length/number of bits for the fingerprint (default depends on fp_type)",
+    )
     dtype: Any = Field(
         np.float32,
         title="Data type",
@@ -50,15 +49,17 @@ class FingerprintFeaturizer(MolfeatFeaturizer):
         title="Number of jobs",
         description="The number of jobs to use for featurization, -1 for maximum parallelism",
     )
-    use_cache: bool = Field(
-        True,
-        title="Use cache",
-        description="Whether to cache featurization results to disk",
-    )
 
     def _prepare(self):
         """Prepare the featurizer."""
-        vec_featurizer = FPVecTransformer(self.fp_type, dtype=self.dtype)
+        # Create FPVecTransformer with optional length parameter
+        if self.length is not None:
+            vec_featurizer = FPVecTransformer(
+                self.fp_type, length=self.length, dtype=self.dtype
+            )
+        else:
+            vec_featurizer = FPVecTransformer(self.fp_type, dtype=self.dtype)
+
         self._transformer = MoleculeTransformer(
             vec_featurizer,
             n_jobs=self.n_jobs,
@@ -84,34 +85,10 @@ class FingerprintFeaturizer(MolfeatFeaturizer):
             successfully featurized molecules.
 
         """
-        # Convert to pandas Series if needed for consistent hashing
-        if not isinstance(smiles, pd.Series):
-            smiles_series = pd.Series(list(smiles))
-        else:
-            smiles_series = smiles
-
-        # Try to load from cache if enabled
-        if self.use_cache:
-            # Get featurizer params for cache key
-            featurizer_params = {
-                "fp_type": self.fp_type,
-                "dtype": str(self.dtype),
-            }
-            cache_key = generate_cache_key(smiles_series, self.type, featurizer_params)
-            cached_result = load_features_from_cache(cache_key)
-
-            if cached_result is not None:
-                return cached_result
-
-        # Cache miss or caching disabled - compute features
         with dm.without_rdkit_log():
             feat, indices = self._transformer(smiles, ignore_errors=True)
 
         # datamol returns with an extra dimension
         feat = np.squeeze(feat)
-
-        # Save to cache if enabled
-        if self.use_cache:
-            save_features_to_cache(cache_key, feat, indices)
 
         return feat, indices
