@@ -40,10 +40,9 @@ def _hash_dataframe(df: pd.DataFrame) -> str:
         SHA256 hash of the DataFrame
 
     """
-    # Convert DataFrame to bytes for hashing
-    # Use to_json with sort_keys to ensure consistent ordering
-    df_json = df.to_json(orient="split", date_format="iso")
-    return hashlib.sha256(df_json.encode()).hexdigest()
+    # Use pandas native hashing for better performance and memory usage
+    hashed_values = pd.util.hash_pandas_object(df, index=True)
+    return hashlib.sha256(hashed_values.values.tobytes()).hexdigest()
 
 
 def _hash_params(params: dict[str, Any]) -> str:

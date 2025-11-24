@@ -28,13 +28,31 @@ from openadmet.models.drivers import DriverType
 
 
 def wrap_ktau(y_true, y_pred):
-    """Wrap ktau nan omission."""
-    return nan_omit_ktau(y_true, y_pred).statistic
+    """Wrap ktau nan omission.
+
+    Returns 0.0 if predictions are constant (zero variance), since correlation
+    is undefined in that case.
+    """
+    # Check if predictions have zero variance (constant predictions)
+    if np.std(y_pred) == 0 or np.std(y_true) == 0:
+        return 0.0
+    result = nan_omit_ktau(y_true, y_pred)
+    # If result is still NaN, return 0.0
+    return 0.0 if np.isnan(result.statistic) else result.statistic
 
 
 def wrap_spearmanr(y_true, y_pred):
-    """Wrap spearmanR nan omission."""
-    return nan_omit_spearmanr(y_true, y_pred).correlation
+    """Wrap spearmanR nan omission.
+
+    Returns 0.0 if predictions are constant (zero variance), since correlation
+    is undefined in that case.
+    """
+    # Check if predictions have zero variance (constant predictions)
+    if np.std(y_pred) == 0 or np.std(y_true) == 0:
+        return 0.0
+    result = nan_omit_spearmanr(y_true, y_pred)
+    # If result is still NaN, return 0.0
+    return 0.0 if np.isnan(result.correlation) else result.correlation
 
 
 class CrossValidationBase(EvalBase):
