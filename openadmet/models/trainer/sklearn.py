@@ -4,10 +4,22 @@ from typing import Any
 
 from loguru import logger
 from sklearn.base import clone
+from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 
 from openadmet.models.drivers import DriverType
+from openadmet.models.eval.cross_validation import (
+    wrap_ktau,
+    wrap_spearmanr,
+)
 from openadmet.models.trainer.trainer_base import TrainerBase, trainers
+
+
+# Custom scorers for metrics not built into sklearn
+CUSTOM_SCORERS = {
+    "spearmanr": make_scorer(wrap_spearmanr),
+    "ktau": make_scorer(wrap_ktau),
+}
 
 
 class SKLearnTrainer(TrainerBase):
@@ -226,6 +238,10 @@ class SKLearnOptunaTrainer(SKLearnSearchTrainer):
 
         # Use negative MSE for HPO if not specified (more stable than R²)
         hpo_scoring = self.scoring if self.scoring else "neg_mean_squared_error"
+
+        # Convert custom metric names to scorer objects
+        if isinstance(hpo_scoring, str) and hpo_scoring in CUSTOM_SCORERS:
+            hpo_scoring = CUSTOM_SCORERS[hpo_scoring]
 
         # sklearn scorers follow convention: higher is better
         # All neg_* metrics are already negated, so we always maximize
