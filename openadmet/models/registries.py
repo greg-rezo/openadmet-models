@@ -35,6 +35,7 @@ from openadmet.models.eval.eval_base import evaluators  # noqa: F401 F403
 from openadmet.models.features.chemprop import *  # noqa: F401 F403
 from openadmet.models.features.combine import *  # noqa: F401 F403
 from openadmet.models.features.gat_featurizer import *  # noqa: F401 F403
+from openadmet.models.features.identity import *  # noqa: F401 F403
 from openadmet.models.features.molfeat_fingerprint import *  # noqa: F401 F403
 from openadmet.models.features.molfeat_properties import *  # noqa: F401 F403
 from openadmet.models.features.mtenn import *  # noqa: F401 F403

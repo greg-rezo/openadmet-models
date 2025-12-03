@@ -483,3 +483,155 @@ class TestDeviceConfiguration:
 
         assert use_cpu is False
         assert use_bf16 is True
+
+
+class TestHuggingFaceE2EWithHPO:
+    """End-to-end tests for HuggingFace models with HPO via Anvil workflow."""
+
+    @pytest.mark.slow
+    def test_molformer_nested_optuna_regression(self, tmp_path):
+        """Test end-to-end nested CV with Optuna for HuggingFace regressor.
+
+        This test verifies the complete integration with the Anvil API:
+        - Creating an Anvil recipe YAML with SKLearnOptunaTrainer
+        - Using HuggingFaceRegressorModel with MoLFormer
+        - Running nested CV with Optuna through the workflow
+        - Generating evaluation metrics
+
+        Uses minimal settings for fast execution:
+        - 2 epochs max with early stopping patience 1
+        - 2 HPO trials
+        - 2 outer CV splits, 2 inner CV splits
+        """
+        pytest.importorskip("transformers")
+
+        import yaml
+
+        from openadmet.models.anvil.specification import AnvilSpecification
+
+        # Create test data with simple SMILES
+        smiles_list = [
+            "CCO",  # ethanol
+            "CC(=O)O",  # acetic acid
+            "c1ccccc1",  # benzene
+            "CC(C)O",  # isopropanol
+            "CCCC",  # butane
+            "CC=O",  # acetaldehyde
+            "CCN",  # ethylamine
+            "CCC",  # propane
+            "CCCO",  # propanol
+            "CC(C)C",  # isobutane
+            "CCOCC",  # diethyl ether
+            "CC(=O)C",  # acetone
+            "c1ccc(O)cc1",  # phenol
+            "CCCBr",  # 1-bromopropane
+            "CCCC(=O)O",  # butyric acid
+            "c1ccc(C)cc1",  # toluene
+        ]
+        targets = [1.0, 2.0, 3.0, 1.5, 2.5, 3.5, 1.2, 2.2, 3.2, 1.8, 2.8, 3.8,
+                   1.1, 2.1, 3.1, 1.6]
+
+        import pandas as pd
+
+        df = pd.DataFrame({
+            "smiles": smiles_list,
+            "target": targets,
+        })
+        csv_path = tmp_path / "test_data.csv"
+        df.to_csv(csv_path, index=False)
+
+        # Create Anvil recipe with nested Optuna trainer and HuggingFace model
+        recipe = {
+            "metadata": {
+                "version": "v1",
+                "name": "huggingface-molformer-nested-optuna-test",
+                "build_number": 0,
+                "description": "E2E test for HuggingFace with nested CV and Optuna",
+                "tag": "test-huggingface-optuna",
+                "authors": "Test",
+                "email": "test@test.com",
+                "date_created": "2024-01-01",
+                "biotargets": ["TEST"],
+                "tags": ["test", "huggingface", "molformer", "optuna"],
+            },
+            "data": {
+                "type": "csv",
+                "resource": str(csv_path),
+                "input_col": "smiles",
+                "target_cols": ["target"],
+            },
+            "procedure": {
+                "split": {
+                    "type": "ShuffleSplitter",
+                    "params": {"train_size": 0.8, "random_state": 42},
+                },
+                "feat": {
+                    "type": "IdentityFeaturizer",
+                    "params": {},
+                },
+                "model": {
+                    "type": "HuggingFaceRegressorModel",
+                    "params": {
+                        "model_id": "ibm/MoLFormer-XL-both-10pct",
+                        "num_train_epochs": 2,
+                        "early_stopping_patience": 1,
+                        "per_device_train_batch_size": 4,
+                        "accelerator": "cpu",
+                    },
+                },
+                "train": {
+                    "type": "SKLearnOptunaTrainer",
+                    "params": {
+                        "outer_n_splits": 2,
+                        "outer_repeats": 1,
+                        "inner_cv": 2,
+                        "n_trials": 2,
+                        "sampler_seed": 42,
+                        "param_distributions": {
+                            "learning_rate": {
+                                "type": "float",
+                                "low": 1e-5,
+                                "high": 1e-4,
+                                "log": True,
+                            },
+                            "weight_decay": {
+                                "type": "float",
+                                "low": 0.0,
+                                "high": 0.1,
+                            },
+                        },
+                    },
+                },
+            },
+            "report": {
+                "eval": [
+                    {"type": "RegressionMetrics"},
+                ]
+            },
+        }
+
+        recipe_path = tmp_path / "huggingface_optuna_recipe.yaml"
+        with open(recipe_path, "w") as f:
+            yaml.dump(recipe, f)
+
+        # Run workflow through Anvil API
+        output_dir = tmp_path / "output"
+        anvil_spec = AnvilSpecification.from_recipe(recipe_path)
+        anvil_workflow = anvil_spec.to_workflow()
+        anvil_workflow.run(output_dir=output_dir)
+
+        # Verify expected outputs exist
+        from pathlib import Path
+
+        assert Path(output_dir / "model.json").exists()
+        assert Path(output_dir / "regression_metrics.json").exists()
+        assert Path(output_dir / "anvil_recipe.yaml").exists()
+
+        # Verify regression metrics were computed
+        with open(output_dir / "regression_metrics.json") as f:
+            metrics = json.load(f)
+            # Should have standard regression metrics - check nested under 'target'
+            target_metrics = metrics.get("target", {})
+            assert "mse" in target_metrics, f"Expected 'mse' in metrics: {metrics}"
+            assert "mae" in target_metrics
+            assert "r2" in target_metrics

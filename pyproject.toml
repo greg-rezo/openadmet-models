@@ -67,6 +67,7 @@ dependencies = [
   "torch-scatter",
   "torch-sparse",
   "transformers>=4.30.0",
+  "accelerate>=0.20.0",
   "datasets>=2.0.0",
   "tqdm",
   "umap-learn",
