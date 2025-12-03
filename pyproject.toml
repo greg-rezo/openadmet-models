@@ -66,6 +66,8 @@ dependencies = [
   "torch-geometric",
   "torch-scatter",
   "torch-sparse",
+  "transformers>=4.30.0",
+  "datasets>=2.0.0",
   "tqdm",
   "umap-learn",
   "uncertainty-toolbox",
