@@ -47,6 +47,8 @@ from openadmet.models.split.scaffold import *  # noqa: F401 F403
 from openadmet.models.split.sklearn import *  # noqa: F401 F403
 from openadmet.models.split.split_base import splitters  # noqa: F401 F403
 from openadmet.models.split.cluster import *  # noqa: F401 F403
+# Import registers !UMAPCVSplitter YAML tag for use in Anvil recipes
+from openadmet.models.split.umap_split import UMAPCVSplitter  # noqa: F401
 
 # trainers
 from openadmet.models.trainer.lightning import *  # noqa: F401 F403
