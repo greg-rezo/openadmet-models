@@ -54,3 +54,4 @@ Copyright (c) 2025, OpenADMET Models Contributors
 ## Acknowledgements
 
 OpenADMET is an [Open Molecular Software Foundation](https://omsf.io/) hosted project.
+# Force rebuild
